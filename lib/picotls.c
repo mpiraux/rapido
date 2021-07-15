@@ -3217,6 +3217,10 @@ static int decode_client_hello(ptls_t *tls, struct st_ptls_client_hello_t *ch, c
             goto Exit;
         }
         ch->legacy_session_id = ptls_iovec_init(src, end - src);
+        if (properties && properties->server.tls_session_id.base) {
+            memcpy(properties->server.tls_session_id.base, ch->legacy_session_id.base, ch->legacy_session_id.len);
+            properties->server.tls_session_id.len = ch->legacy_session_id.len;
+        }
         src = end;
     });
 
@@ -4840,6 +4844,11 @@ int ptls_handshake(ptls_t *tls, ptls_buffer_t *_sendbuf, const void *input, size
     case PTLS_STATE_CLIENT_HANDSHAKE_START: {
         assert(input == NULL || *inlen == 0);
         assert(tls->ctx->key_exchanges[0] != NULL);
+        if (properties && properties->client.tls_session_id.base) {
+            tls->client.legacy_session_id = ptls_iovec_init(tls->client.legacy_session_id_buf, sizeof(tls->client.legacy_session_id_buf));
+            memcpy(tls->client.legacy_session_id.base, properties->client.tls_session_id.base, properties->client.tls_session_id.len);
+            tls->client.legacy_session_id.len = properties->client.tls_session_id.len;
+        }
         return send_client_hello(tls, &emitter.super, properties, NULL);
     }
     default:

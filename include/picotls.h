@@ -852,6 +852,10 @@ typedef struct st_ptls_handshake_properties_t {
              * ESNIKeys (the value of the TXT record, after being base64-"decoded")
              */
             ptls_iovec_t esni_keys;
+            /**
+             * set the TLS Session ID
+             */
+            ptls_iovec_t tls_session_id;
         } client;
         struct {
             /**
@@ -883,6 +887,10 @@ typedef struct st_ptls_handshake_properties_t {
              * if retry should be stateless (cookie.key MUST be set when this option is used)
              */
             unsigned retry_uses_cookie : 1;
+            /*
+             * receive the TLS Session ID
+             */
+            ptls_iovec_t tls_session_id;
         } server;
     };
     /**
