@@ -10,15 +10,21 @@
 /*
  * TODO:
  *  - Need a byte range abstraction for stream buf ack tracking
- *  - Need a circle buf that can grow
  */
 
 typedef uint32_t rapido_connection_id_t;
 typedef uint32_t rapido_stream_id_t;
+
+#define STREAM_IS_CLIENT(sid) (((sid) & 0x1) == 0)
+#define STREAM_IS_SERVER(sid) (((sid) & 0x1) == 1)
+
 typedef uint8_t rapido_address_id_t;
 typedef uint64_t set_t;
 
-#define SET_HAS(bs, e) (bs & (1 << ((int) e)))
+#define SET_LEN 64
+#define SET_HAS(bs, e) (bs & (1ull << ((uint64_t) e)))
+#define SET_ADD(bs, e) bs = (bs | (1ull << ((uint64_t) e)))
+#define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t) e))))
 
 typedef struct {
     size_t capacity;
@@ -35,6 +41,14 @@ typedef struct {
     size_t item_size;
     uint8_t *data;
 } rapido_queue_t;
+
+typedef struct {
+    size_t capacity;
+    size_t size;
+    size_t front_index;
+    size_t back_index;
+    uint8_t *data;
+} rapido_stream_buffer_t;
 
 void *rapido_queue_pop(rapido_queue_t *queue);
 
@@ -55,6 +69,7 @@ typedef struct {
     rapido_array_t connections;
     rapido_connection_id_t next_connection_id;
     rapido_array_t streams;
+    rapido_stream_id_t next_stream_id;
 
     rapido_array_t local_addresses;
     rapido_address_id_t next_local_address_id;
@@ -103,8 +118,15 @@ typedef struct {
 
     set_t connections;
 
+    rapido_stream_buffer_t read_buffer;
     size_t read_offset;
+    size_t read_fin;
+    bool fin_received;
+    rapido_stream_buffer_t send_buffer;
     size_t write_offset;
+    size_t write_fin;
+    bool fin_set;
+    bool fin_sent;
 
     uint64_t bytes_received;
     uint64_t bytes_sent;
@@ -116,6 +138,7 @@ typedef struct {
         rapido_connection_failed,
         rapido_new_stream,
         rapido_stream_has_data,
+        rapido_stream_closed,
         rapido_new_remote_address,
     } notification_type;
 
@@ -137,10 +160,11 @@ int rapido_run_network(rapido_t *session);
 int rapido_close_connection(rapido_t *session, rapido_connection_id_t *connection_id);
 
 rapido_stream_id_t rapido_open_stream(rapido_t *session);
-int rapido_attach_stream(rapido_t *session, rapido_stream_t stream, rapido_connection_t connection);
-int rapido_remove_stream(rapido_t *session, rapido_stream_t stream, rapido_connection_t connection);
-int rapido_add_to_stream(rapido_t *session, rapido_stream_t stream, void *data, size_t len);
-int rapido_close_stream(rapido_t *session, rapido_stream_t stream);
+int rapido_attach_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
+int rapido_remove_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
+int rapido_add_to_stream(rapido_t *session, rapido_stream_id_t stream_id, void *data, size_t len);
+void *rapido_read_stream(rapido_t *session, rapido_stream_id_t stream_id, size_t *len);
+int rapido_close_stream(rapido_t *session, rapido_stream_id_t stream_id);
 
 int rapido_receive(rapido_t *session);
 int rapido_close(rapido_t *session);
