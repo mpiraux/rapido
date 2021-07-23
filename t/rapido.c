@@ -1,6 +1,7 @@
 #include <picotest.h>
 #include "test.h"
 #include "rapido.h"
+#include "rapido_internals.h"
 #include "util.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -127,6 +128,7 @@ void test_simple_stream_transfer() {
     ok(notification->notification_type == rapido_stream_has_data);
     ok(notification->stream_id == server_stream_id);
     ok(rapido_close_stream(client, server_stream_id) == 0);
+    ok(server->pending_notifications.size == 0);
     rapido_run_network(client);
     rapido_run_network(server);
     ok(server->pending_notifications.size == 1);
@@ -134,14 +136,79 @@ void test_simple_stream_transfer() {
     ok(notification->notification_type == rapido_stream_closed);
     ok(notification->stream_id == server_stream_id);
 
+    rapido_stream_id_t second_stream_id = rapido_open_stream(client);
+    ok(stream_id != second_stream_id);
+    ok(second_stream_id != server_stream_id);
+    ok(rapido_add_to_stream(client, second_stream_id, "Stream reordering test", 22) == 0);
+    ok(rapido_close_stream(client, second_stream_id) == 0);
+    uint8_t stream_frame_buf1[35];
+    size_t stream_frame_len1 = sizeof(stream_frame_buf1);
+    uint8_t stream_frame_buf2[35];
+    size_t stream_frame_len2 = sizeof(stream_frame_buf2);
+    ok(rapido_prepare_stream_frame(client, rapido_array_get(&client->streams, second_stream_id), stream_frame_buf1, &stream_frame_len1) == 0);
+    ok(rapido_prepare_stream_frame(client, rapido_array_get(&client->streams, second_stream_id), stream_frame_buf2, &stream_frame_len2) == 0);
+    ok(stream_frame_len1 <= sizeof(stream_frame_buf1));
+    ok(stream_frame_len2 <= sizeof(stream_frame_buf2));
+    ok(stream_frame_len1 > 0 && stream_frame_len2 > 0);
+    uint8_t ciphertext[100];
+    ptls_buffer_t sendbuf = { 0 };
+    ptls_buffer_init(&sendbuf, ciphertext, sizeof(ciphertext));
+    assert(ptls_send(client->tls, &sendbuf, stream_frame_buf2, stream_frame_len2) == 0);
+    assert(send(((rapido_connection_t *)rapido_array_get(&client->connections, c_cid))->socket, sendbuf.base, sendbuf.off, 0) == sendbuf.off);
+    ptls_buffer_init(&sendbuf, ciphertext, sizeof(ciphertext));
+    assert(ptls_send(client->tls, &sendbuf, stream_frame_buf1, stream_frame_len1) == 0);
+    assert(send(((rapido_connection_t *)rapido_array_get(&client->connections, c_cid))->socket, sendbuf.base, sendbuf.off, 0) == sendbuf.off);
+    rapido_run_network(server);
+    ok(server->pending_notifications.size == 4);
+    notification = rapido_queue_pop(&server->pending_notifications);
+    ok(notification->notification_type == rapido_new_stream);
+    ok(notification->stream_id == second_stream_id);
+    notification = rapido_queue_pop(&server->pending_notifications);
+    ok(notification->notification_type == rapido_stream_has_data);
+    ok(notification->stream_id == second_stream_id);
+    notification = rapido_queue_pop(&server->pending_notifications);
+    ok(notification->notification_type == rapido_stream_closed);
+    ok(notification->stream_id == second_stream_id);
+    notification = rapido_queue_pop(&server->pending_notifications);
+    ok(notification->notification_type == rapido_stream_has_data);
+    ok(notification->stream_id == second_stream_id);
+    read_len = 1000;
+    str = rapido_read_stream(server, second_stream_id, &read_len);
+    ok(read_len == 22);
+    ok(memcmp(str, "Stream reordering test", read_len) == 0);
+
     rapido_close(client);
     rapido_close(server);
     free(client);
     free(server);
 }
 
+void test_range_list() {
+    rapido_range_list_t list;
+    memset(&list, 0, sizeof(rapido_range_list_t));
+    ok(rapido_add_range(&list, 0, 1) == 0);
+    uint64_t l, h;
+    rapido_peek_range(&list, &l, &h);
+    ok(l == 0 && h == 1);
+
+    ok(rapido_add_range(&list, 2, 3) == 0);
+    rapido_peek_range(&list, &l, &h);
+    ok(l == 0 && h == 1);
+
+    ok(rapido_add_range(&list, 1, 2) == 0);
+    rapido_peek_range(&list, &l, &h);
+    ok(l == 0 && h == 3);
+
+    ok(rapido_trim_range(&list, 2) == 2);
+    rapido_peek_range(&list, &l, &h);
+    ok(l == 2 && h == 3);
+    ok(rapido_trim_range(&list, 10) == 3);
+    ok(rapido_trim_range(&list, 10) == 0);
+}
+
 void test_rapido() {
     subtest("test_local_address_api", test_local_address_api);
     subtest("test_local_address_server", test_local_address_server);
+    subtest("test_range_list", test_range_list);
     subtest("test_simple_stream_transfer", test_simple_stream_transfer);
 }

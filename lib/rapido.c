@@ -1,4 +1,5 @@
 #include "rapido.h"
+#include "rapido_internals.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
@@ -200,6 +201,123 @@ void rapido_stream_buffer_free(rapido_stream_buffer_t *buffer) {
     memset(buffer, 0, sizeof(rapido_stream_buffer_t));
 }
 
+int rapido_add_range(rapido_range_list_t *list, uint64_t low, uint64_t high) {
+    assert(low < high);
+    assert(list->size < RANGES_LEN);
+    bool merged = false;
+    for (int i = 0; i < list->size && !merged; i++) {
+        struct rapido_range_item *r = list->ranges + i;
+        if (r->low <= low && low <= r->high) {
+            /* Range overlaps, potentially extending the high limit */
+            r->high = max(r->high, high);
+            merged = true;
+        }
+        if (r->low <= high && high <= r->high) {
+            /* Range overlaps, potentially extending the low limit */
+            r->low = min(r->low, low);
+            merged = true;
+        }
+        if (!merged && low < r->low) {
+            /* Range is strictly before next range */
+            memmove(list->ranges + i + 1, list->ranges + i, (list->size - i) * sizeof(struct rapido_range_item));
+            list->size++;
+            r->low = low;
+            r->high = high;
+            return 0;
+        }
+    }
+    for (int i = 0; i + 1 < list->size; i++) {
+        struct rapido_range_item *r = list->ranges + i;
+        struct rapido_range_item *n = list->ranges + i + 1;
+        if (r->high >= n->low) {
+            /* Range overlaps next one */
+            n->low = r->low;
+            memmove(list->ranges + i, list->ranges + i + 1, (list->size - i - 1) * sizeof(struct rapido_range_item));
+            list->size--;
+            i--;
+        }
+    }
+    if (!merged) {
+        /* No range is inferior to this range */
+        assert(list->size < RANGES_LEN);
+        list->ranges[list->size].low = low;
+        list->ranges[list->size].high = high;
+        list->size++;
+    }
+    return 0;
+}
+
+void rapido_peek_range(rapido_range_list_t *list, uint64_t *low, uint64_t *high) {
+    *low = 0;
+    *high = 0;
+    if (list->size > 0) {
+        *low = list->ranges[0].low;
+        *high = list->ranges[0].high;
+    }
+}
+
+uint64_t rapido_trim_range(rapido_range_list_t *list, uint64_t limit) {
+    uint64_t offset = 0;
+    for (int i = 0; i < list->size; i++) {
+        struct rapido_range_item *r = list->ranges + i;
+        if (r->low <= limit && limit < r->high) {
+            offset = limit;
+            r->low = limit;
+        } else if (r->high <= limit) {
+            offset = r->high;
+            memmove(list->ranges + i, list->ranges + i + 1, (list->size - i - 1) * sizeof(struct rapido_range_item));
+            list->size--;
+        }
+    }
+    return offset;
+}
+
+void rapido_stream_receive_buffer_init(rapido_stream_receive_buffer_t *receive, size_t capacity) {
+    memset(receive, 0, sizeof(rapido_stream_receive_buffer_t));
+    receive->buffer.data = malloc(capacity);
+    assert(receive->buffer.data != NULL);
+    receive->buffer.capacity = capacity;
+}
+
+int rapido_stream_receive_buffer_write(rapido_stream_receive_buffer_t *receive, size_t offset, void *input, size_t len) {
+    assert(offset >= receive->read_offset);
+    size_t write_offset = offset - receive->read_offset;
+    if (write_offset + len < receive->buffer.capacity) {
+        size_t new_cap = receive->buffer.capacity * 2;
+        receive->buffer.data = reallocarray(receive->buffer.data, new_cap, 1);
+        assert(receive->buffer.data);
+        memcpy(receive->buffer.data + receive->buffer.capacity, receive->buffer.data, receive->buffer.capacity);
+        receive->buffer.capacity = new_cap;
+    }
+    size_t real_offset = (receive->buffer.offset + write_offset) % receive->buffer.capacity;
+    size_t wrap_offset = receive->buffer.capacity - write_offset;
+    memcpy(receive->buffer.data + real_offset, input, min(len, wrap_offset));
+    if (wrap_offset < len) {
+        memcpy(receive->buffer.data, input + wrap_offset, len - wrap_offset);
+    }
+
+    rapido_add_range(&receive->ranges, offset, offset + len);
+    return 0;
+}
+
+void *rapido_stream_receive_buffer_get(rapido_stream_receive_buffer_t *receive, size_t *len) {
+    size_t read_offset = rapido_trim_range(&receive->ranges, receive->read_offset + *len);
+    *len = min(*len, read_offset - receive->read_offset);
+    size_t wrap_offset = receive->buffer.capacity - read_offset;
+    *len = min(*len, wrap_offset);
+    void *ptr = receive->buffer.data + receive->buffer.offset;
+    receive->read_offset += *len;
+    receive->buffer.offset = (receive->buffer.offset + *len) % receive->buffer.capacity;
+    return ptr;
+}
+
+void rapido_stream_receive_buffer_free(rapido_stream_receive_buffer_t *receive) {
+    if (receive->buffer.capacity && receive->buffer.data != NULL) {
+        free(receive->buffer.data);
+    }
+    memset(receive, 0, sizeof(rapido_stream_receive_buffer_t));
+}
+
 typedef uint8_t rapido_frame_type_t;
 
 static const rapido_frame_type_t padding_frame_type = 0x0;
@@ -365,7 +483,7 @@ rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local
         assert(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) == handshake_buffer.off);
         ptls_buffer_dispose(&handshake_buffer);
     } else {
-        assert("TODO JOIN"); // TODO JOIN
+        assert(!"TODO JOIN"); // TODO JOIN
     }
 
     return connection_id;
@@ -377,7 +495,7 @@ rapido_stream_id_t rapido_open_stream(rapido_t *session) {
     rapido_stream_t *stream = rapido_array_add(&session->streams, next_stream_id);
     memset(stream, 0, sizeof(rapido_stream_t));
     stream->stream_id = next_stream_id;
-    rapido_stream_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
+    rapido_stream_receive_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
     rapido_stream_buffer_init(&stream->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
     return next_stream_id;
 }
@@ -412,9 +530,7 @@ int rapido_add_to_stream(rapido_t *session, rapido_stream_id_t stream_id, void *
 void *rapido_read_stream(rapido_t *session, rapido_stream_id_t stream_id, size_t *len) {
     rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
     assert(stream != NULL);
-    void *ptr = rapido_stream_buffer_get(&stream->read_buffer, len);
-    stream->read_offset += *len;
-    return ptr;
+    return rapido_stream_receive_buffer_get(&stream->read_buffer, len);
 }
 int rapido_close_stream(rapido_t *session, rapido_stream_id_t stream_id) {
     rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
@@ -485,18 +601,17 @@ int rapido_process_stream_frame(rapido_t *session, rapido_stream_frame_t *frame)
         stream = rapido_array_add(&session->streams, frame->stream_id);
         memset(stream, 0, sizeof(rapido_stream_t));
         stream->stream_id = frame->stream_id;
-        rapido_stream_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
+        rapido_stream_receive_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
         rapido_stream_buffer_init(&stream->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
         rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
         notification->notification_type = rapido_new_stream;
         notification->stream_id = frame->stream_id;
     }
-    assert(frame->offset == stream->read_offset + stream->read_buffer.size);
     assert(!stream->fin_received || (frame->offset + frame->len <= stream->read_fin));
     assert(!frame->fin || !stream->fin_received);
     assert(frame->len > 0 || frame->fin);
-    rapido_stream_buffer_push(&stream->read_buffer, frame->data, frame->len);
     if (frame->len) {
+        rapido_stream_receive_buffer_write(&stream->read_buffer, frame->offset, frame->data, frame->len);
         rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
         notification->notification_type = rapido_stream_has_data;
         notification->stream_id = frame->stream_id;
@@ -512,6 +627,7 @@ int rapido_process_stream_frame(rapido_t *session, rapido_stream_frame_t *frame)
 }
 
 int rapido_run_network(rapido_t *session) {
+    // TODO: Read and writes until it blocks
     if(session->is_server) {
         /* Accept new TCP connections and prepare the TLS handshake */
         size_t nfds = session->server.listen_sockets.size;
@@ -536,7 +652,7 @@ int rapido_run_network(rapido_t *session) {
                     pending_connection->tls_ctx = session->tls_ctx;
                     pending_connection->tls = session->tls;
                 } else {
-                    assert("TODO JOIN"); // TODO JOIN
+                    assert(!"TODO JOIN"); // TODO JOIN
                 }
             }
         }
@@ -562,12 +678,13 @@ int rapido_run_network(rapido_t *session) {
                 ptls_buffer_init(&handshake_buffer, "", 0);
                 uint8_t tls_session_id_buf[TLS_SESSION_ID_LEN];
                 session->tls_properties.server.tls_session_id = ptls_iovec_init(tls_session_id_buf, sizeof(tls_session_id_buf));
-                ret = ptls_handshake(connection->tls, &handshake_buffer, recvbuf, &recvd, &session->tls_properties);
-                if (recvd > 0) {
-                    assert("More data after handshake");
+                size_t consumed = recvd;
+                ret = ptls_handshake(connection->tls, &handshake_buffer, recvbuf, &consumed, &session->tls_properties);
+                if (consumed < recvd) {
+                    assert(!"More data after handshake");
                 }
                 if (ret == PTLS_ERROR_IN_PROGRESS) {
-                    assert("Fragmented handshake"); // TODO: Handle fragmented handshake
+                    assert(!"Fragmented handshake"); // TODO: Handle fragmented handshake
                 } else {
                     if (ret == 0) {
                         /* ClientHello */
@@ -643,12 +760,13 @@ int rapido_run_network(rapido_t *session) {
             if (!session->is_server && !ptls_handshake_is_complete(session->tls)) {
                 ptls_buffer_t handshake_buffer = {0};
                 ptls_buffer_init(&handshake_buffer, "", 0);
-                ret = ptls_handshake(session->tls, &handshake_buffer, recvbuf, &recvd, &session->tls_properties);
-                if (recvd > 0) {
-                    assert("More data after handshake");
+                size_t consumed = recvd;
+                ret = ptls_handshake(session->tls, &handshake_buffer, recvbuf, &consumed, &session->tls_properties);
+                if (consumed < recvd) {
+                    assert(!"More data after handshake");
                 }
                 if (ret == PTLS_ERROR_IN_PROGRESS) {
-                    assert("Fragmented handshake"); // TODO: Handle fragmented handshake
+                    assert(!"Fragmented handshake"); // TODO: Handle fragmented handshake
                 }
                 assert(session->tls_properties.collected_extensions == NULL);
                 bool has_rapido_hello = false;
@@ -662,36 +780,37 @@ int rapido_run_network(rapido_t *session) {
                 assert(ret == 0);
                 assert(send(fds[i].fd, handshake_buffer.base, handshake_buffer.off, 0) == handshake_buffer.off);
             } else {
-                uint8_t plaintext_buf[TLS_MAX_RECORD_SIZE + 1];
-                ptls_buffer_t plaintext = { 0 };
-                ptls_buffer_init(&plaintext, plaintext_buf, sizeof(plaintext_buf));
-                // TODO: Switch to the connection crypto context
-                ret = ptls_receive(session->tls, &plaintext, recvbuf, &recvd);
-
-                if (recvd > 0) {
-                    assert("More data after ptls_receive");
-                }
-                if (ret == PTLS_ERROR_IN_PROGRESS) {
-                    assert("Fragmented data"); // TODO: Handle fragmented data
-                }
-                // TODO: Handle the incoming records
-                for (size_t offset = 0; offset < plaintext.off;) {
-                    rapido_frame_type_t frame_type = plaintext.base[offset];
-                    size_t len = plaintext.off - offset;
-                    switch(frame_type) {
-                    case stream_frame_type: {
-                        rapido_stream_frame_t frame;
-                        assert(rapido_decode_stream_frame(session, plaintext.base + offset, &len, &frame) == 0);
-                        assert(rapido_process_stream_frame(session, &frame) == 0);
+                size_t recvd_offset = 0;
+                    while (recvd_offset < recvd) {
+                    uint8_t plaintext_buf[TLS_MAX_RECORD_SIZE + 1];
+                    ptls_buffer_t plaintext = { 0 };
+                    ptls_buffer_init(&plaintext, plaintext_buf, sizeof(plaintext_buf));
+                    // TODO: Switch to the connection crypto context
+                    size_t consumed = recvd - recvd_offset;
+                    ret = ptls_receive(session->tls, &plaintext, recvbuf + recvd_offset, &consumed);
+                    recvd_offset += consumed;
+                    if (ret == PTLS_ERROR_IN_PROGRESS) {
+                        assert(!"Fragmented data"); // TODO: Handle fragmented data
                     }
-                        break;
-                    default:
-                        WARNING("Unsupported frame type: %d\n", frame_type);
-                        assert("Unsupported frame type");
-                        offset = plaintext.off;
-                        break;
+                    // TODO: Handle the incoming records
+                    for (size_t offset = 0; offset < plaintext.off;) {
+                        rapido_frame_type_t frame_type = plaintext.base[offset];
+                        size_t len = plaintext.off - offset;
+                        switch(frame_type) {
+                        case stream_frame_type: {
+                            rapido_stream_frame_t frame;
+                            assert(rapido_decode_stream_frame(session, plaintext.base + offset, &len, &frame) == 0);
+                            assert(rapido_process_stream_frame(session, &frame) == 0);
+                        }
+                            break;
+                        default:
+                            WARNING("Unsupported frame type: %d\n", frame_type);
+                            assert(!"Unsupported frame type");
+                            offset = plaintext.off;
+                            break;
+                        }
+                        offset += len;
                     }
-                    offset += len;
                 }
             }
         }
@@ -739,7 +858,7 @@ int rapido_close(rapido_t *session) {
         }
     });
     rapido_array_iter(&session->streams, rapido_stream_t *stream,{
-        rapido_stream_buffer_free(&stream->read_buffer);
+        rapido_stream_receive_buffer_free(&stream->read_buffer);
         rapido_stream_buffer_free(&stream->send_buffer);
     });
     free(session->tls_properties.additional_extensions);

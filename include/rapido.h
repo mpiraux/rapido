@@ -50,6 +50,26 @@ typedef struct {
     uint8_t *data;
 } rapido_stream_buffer_t;
 
+#define RANGES_LEN 64
+
+typedef struct {
+    struct rapido_range_item {
+        uint64_t low;
+        uint64_t high;
+    } ranges[RANGES_LEN];
+    size_t size;
+} rapido_range_list_t;
+
+typedef struct {
+    struct {
+        void *data;
+        size_t capacity;
+        size_t offset;
+    } buffer;
+    rapido_range_list_t ranges;
+    size_t read_offset;
+} rapido_stream_receive_buffer_t;
+
 void *rapido_queue_pop(rapido_queue_t *queue);
 
 #define rapido_queue_iter(q, e, bl)                                                                                                \
@@ -118,10 +138,10 @@ typedef struct {
 
     set_t connections;
 
-    rapido_stream_buffer_t read_buffer;
-    size_t read_offset;
+    rapido_stream_receive_buffer_t read_buffer;
     size_t read_fin;
     bool fin_received;
+
     rapido_stream_buffer_t send_buffer;
     size_t write_offset;
     size_t write_fin;

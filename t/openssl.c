@@ -339,6 +339,7 @@ int main(int argc, char **argv)
     subtest("cert-verify", test_cert_verify);
     subtest("picotls", test_picotls);
     subtest("rapido", test_rapido);
+    return 0;
     test_picotls_esni(esni_private_keys);
 
     ctx = ctx_peer = &openssl_ctx_sha256only;
