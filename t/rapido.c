@@ -10,7 +10,7 @@
 
 
 void test_local_address_api() {
-    rapido_t *s = rapido_new(ctx, false, "localhost");
+    rapido_t *s = rapido_new(ctx, false, "localhost", NULL);
     struct sockaddr_in a, b;
     memset(&a, 1, sizeof(a));
     memset(&b, 2, sizeof(b));
@@ -29,7 +29,7 @@ void test_local_address_api() {
 }
 
 void test_local_address_server() {
-    rapido_t *s = rapido_new(ctx, true, "localhost");
+    rapido_t *s = rapido_new(ctx, true, "localhost", NULL);
     struct sockaddr_in a;
     struct sockaddr_in6 b;
     socklen_t len_a = sizeof(a), len_b = sizeof(b);
@@ -51,8 +51,8 @@ void test_local_address_server() {
 }
 
 void test_simple_stream_transfer() {
-    rapido_t *client = rapido_new(ctx, false, "localhost");
-    rapido_t *server = rapido_new(ctx, true, "localhost");
+    rapido_t *client = rapido_new(ctx, false, "localhost", NULL);
+    rapido_t *server = rapido_new(ctx, true, "localhost", NULL);
     struct sockaddr_in a, b;
     socklen_t len_a = sizeof(a), len_b = sizeof(b);
     ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);

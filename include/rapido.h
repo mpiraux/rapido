@@ -2,6 +2,7 @@
 #define rapido_h
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -111,6 +112,11 @@ typedef struct {
             size_t next_pending_connection;
         } server;
     };
+
+    struct {
+        FILE *out;
+        uint64_t reference_time;
+    } qlog;
 } rapido_t;
 
 typedef struct {
@@ -169,7 +175,7 @@ typedef struct {
     };
 } rapido_application_notification_t;
 
-rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, char *server_name);
+rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, char *server_name, FILE *qlog_out);
 
 rapido_address_id_t rapido_add_address(rapido_t *session, struct sockaddr* addr, socklen_t addr_len);
 rapido_address_id_t rapido_add_remote_address(rapido_t *session, struct sockaddr* addr, socklen_t addr_len);

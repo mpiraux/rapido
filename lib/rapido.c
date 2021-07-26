@@ -6,16 +6,33 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <errno.h>
-#include <libsync.h>
+#include <poll.h>
+#include <time.h>
+#include <arpa/inet.h>
 
 #define WARNING(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
-#define TLS_SESSION_ID_LEN 32
-#define TLS_MAX_RECORD_SIZE 16384
-#define TLS_MAX_ENCRYPTED_RECORD_SIZE (TLS_MAX_RECORD_SIZE + 256)
+#ifndef NO_LOG
+#define LOG if (1)
+#define QLOG(session, ev_type, cat, trigger, data_fmt, ...)                                                                        \
+    do {                                                                                                                           \
+        if (!(session)->qlog.out)                                                                                                  \
+            break;                                                                                                                 \
+        fprintf((session)->qlog.out, "[%lu, \"%s:%s\", \"%s\", ", get_time() - (session)->qlog.reference_time, ev_type, cat,         \
+                trigger);                                                                                                          \
+        fprintf((session)->qlog.out, data_fmt ? data_fmt : "{}", ##__VA_ARGS__);                                                   \
+        fprintf((session)->qlog.out, "],\n");                                                                                      \
+    } while (0)
+#else
+#define QLOG(session, ev_type, cat, trigger, data_fmt, ...)
+#define LOG if (0)
+#endif
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
+#define TLS_SESSION_ID_LEN 32
+#define TLS_MAX_RECORD_SIZE 16384
+#define TLS_MAX_ENCRYPTED_RECORD_SIZE (TLS_MAX_RECORD_SIZE + 256)
 #define TLS_RAPIDO_HELLO_EXT 100
 
 #define debug_dump(src, len)                                                                                                       \
@@ -60,6 +77,11 @@ int collected_rapido_extensions(ptls_t *tls, struct st_ptls_handshake_properties
     return 0;
 }
 
+uint64_t get_time() {
+    struct timespec tv;
+    assert(clock_gettime(CLOCK_REALTIME, &tv) == 0);
+    return tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
+}
 
 void *rapido_array_add(rapido_array_t *array, size_t index) {
     if (index >= array->capacity) {
@@ -370,7 +392,7 @@ int rapido_frame_is_ack_eliciting(rapido_frame_type_t frame_id) {
     return frame_id == padding_frame_type || frame_id == ack_frame_type;
 }
 
-rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, char *server_name) {
+rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, char *server_name, FILE *qlog_out) {
     rapido_t *session = calloc(1, sizeof(rapido_t));
     assert(session != NULL);
     session->is_server = is_server;
@@ -397,6 +419,10 @@ rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, char *server_name)
         session->server.listen_sockets.item_size = sizeof(int);
         session->server.pending_connections.item_size = sizeof(rapido_pending_connection_t);
     }
+
+    session->qlog.out = qlog_out;
+    session->qlog.reference_time = get_time();
+    QLOG(session, "api", "rapido_new", "", "{\"is_server\": %d, \"server_name\": \"%s\"}", is_server, server_name);
     return session;
 }
 
@@ -416,6 +442,12 @@ rapido_address_id_t rapido_add_address(rapido_t *session, struct sockaddr *local
         assert_perror(bind(listen_fd, local_address, local_address->sa_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6)));
         assert_perror(listen(listen_fd, SOMAXCONN));
     }
+    LOG {
+        char a[INET6_ADDRSTRLEN];
+        QLOG(session, "api", "rapido_add_address", "", "{\"local_address_id\": \"%d\", \"local_address\": \"%s:%d\"}", local_address_id,
+             inet_ntop(local_address->sa_family, (local_address->sa_family == AF_INET ? (void *) &((struct sockaddr_in *) local_address)->sin_addr : &((struct sockaddr_in6 *) local_address)->sin6_addr), a, sizeof(a)),
+             local_address->sa_family == AF_INET ? ((struct sockaddr_in *) local_address)->sin_port : ((struct sockaddr_in6 *) local_address)->sin6_port);
+    }
     return local_address_id;
 }
 
@@ -424,6 +456,12 @@ rapido_address_id_t rapido_add_remote_address(rapido_t *session, struct sockaddr
     assert(remote_address_len == sizeof(struct sockaddr_in) || remote_address_len == sizeof(struct sockaddr_in6));
     rapido_address_id_t remote_address_id = session->next_remote_address_id++;
     memcpy(rapido_array_add(&session->remote_addresses, remote_address_id), remote_address, remote_address_len);
+    LOG {
+        char a[INET6_ADDRSTRLEN];
+        QLOG(session, "api", "rapido_add_remote_address", "", "{\"local_address_id\": \"%d\", \"local_address\": \"%s:%d\"}", remote_address_id,
+             inet_ntop(remote_address->sa_family, remote_address->sa_family == AF_INET ? (void *) &((struct sockaddr_in *) remote_address)->sin_addr : &((struct sockaddr_in6 *) remote_address)->sin6_addr, a, sizeof(a)),
+             remote_address->sa_family == AF_INET ? ((struct sockaddr_in *) remote_address)->sin_port : ((struct sockaddr_in6 *) remote_address)->sin6_port);
+    }
     return remote_address_id;
 }
 
@@ -442,6 +480,7 @@ int rapido_remove_address(rapido_t *session, rapido_address_id_t local_address_i
             rapido_array_delete(&session->server.listen_sockets, local_address_id);
         }
     }
+    QLOG(session, "api", "rapido_remove_address", "", "{\"local_address_id\": \"%d\"}", local_address_id);
     return rapido_array_delete(&session->local_addresses, local_address_id);
 }
 
@@ -486,6 +525,7 @@ rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local
         assert(!"TODO JOIN"); // TODO JOIN
     }
 
+    QLOG(session, "api", "rapido_create_connection", "", "{\"local_address_id\": \"%d\", \"remote_address_id\": \"%d\"}", local_address_id, remote_address_id);
     return connection_id;
 }
 
@@ -497,6 +537,7 @@ rapido_stream_id_t rapido_open_stream(rapido_t *session) {
     stream->stream_id = next_stream_id;
     rapido_stream_receive_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
     rapido_stream_buffer_init(&stream->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
+    QLOG(session, "api", "rapido_open_stream", "", "{\"stream_id\": \"%d\"}", next_stream_id);
     return next_stream_id;
 }
 int rapido_attach_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id) {
@@ -508,6 +549,7 @@ int rapido_attach_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido
 
     SET_ADD(stream->connections, connection_id);
     SET_ADD(connection->attached_streams, stream_id);
+    QLOG(session, "api", "rapido_attach_stream", "", "{\"stream_id\": \"%d\", \"connection_id\": \"%d\"}", stream_id, connection_id);
     return 0;
 }
 int rapido_remove_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id) {
@@ -519,17 +561,20 @@ int rapido_remove_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido
 
     SET_REMOVE(stream->connections, connection_id);
     SET_REMOVE(connection->attached_streams, stream_id);
+    QLOG(session, "api", "rapido_remove_stream", "", "{\"stream_id\": \"%d\", \"connection_id\": \"%d\"}", stream_id, connection_id);
     return 0;
 }
 int rapido_add_to_stream(rapido_t *session, rapido_stream_id_t stream_id, void *data, size_t len) {
     rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
     assert(stream != NULL);
     rapido_stream_buffer_push(&stream->send_buffer, data, len);
+    QLOG(session, "api", "rapido_add_to_stream_stream", "", "{\"stream_id\": \"%d\", \"len\": \"%zu\"}", stream_id, len);
     return 0;
 }
 void *rapido_read_stream(rapido_t *session, rapido_stream_id_t stream_id, size_t *len) {
     rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
     assert(stream != NULL);
+    QLOG(session, "api", "rapido_read_stream", "", "{\"stream_id\": \"%d\", \"len\": \"%zu\"}", stream_id, *len);
     return rapido_stream_receive_buffer_get(&stream->read_buffer, len);
 }
 int rapido_close_stream(rapido_t *session, rapido_stream_id_t stream_id) {
@@ -538,6 +583,7 @@ int rapido_close_stream(rapido_t *session, rapido_stream_id_t stream_id) {
     assert(!stream->fin_set);
     stream->fin_set = true;
     stream->write_fin = stream->write_offset + stream->send_buffer.size;
+    QLOG(session, "api", "rapido_close_stream", "", "{\"stream_id\": \"%d\", \"fin_offset\": \"%zu\"}", stream_id, stream->write_fin);
     return 0;
 }
 int rapido_prepare_stream_frame(rapido_t *session, rapido_stream_t *stream, uint8_t *buf, size_t *len) {
@@ -567,6 +613,8 @@ int rapido_prepare_stream_frame(rapido_t *session, rapido_stream_t *stream, uint
     memcpy(buf + consumed, stream_data, payload_len);
     consumed += payload_len;
 
+    QLOG(session, "frames", "prepare_stream_frame", "", "{\"stream_id\": \"%d\", \"offset\": \"%lu\", \"len\": \"%lu\", \"fin\": %d}", stream->stream_id, stream->write_offset, payload_len, fin);
+
     if (fin) {
         stream->fin_sent = true;
     }
@@ -591,6 +639,7 @@ int rapido_decode_stream_frame(rapido_t *session, uint8_t *buf, size_t *len, rap
     frame->data = buf + consumed;
     consumed += frame->len;
     *len = consumed;
+    QLOG(session, "frames", "decode_stream_frame", "", "{\"stream_id\": \"%d\", \"offset\": \"%lu\", \"len\": \"%lu\", \"fin\": %d}", frame->stream_id, frame->offset, frame->len, frame->fin);
     return 0;
 }
 
@@ -628,6 +677,7 @@ int rapido_process_stream_frame(rapido_t *session, rapido_stream_frame_t *frame)
 
 int rapido_run_network(rapido_t *session) {
     // TODO: Read and writes until it blocks
+    QLOG(session, "api", "rapido_run_network", "", NULL);
     if(session->is_server) {
         /* Accept new TCP connections and prepare the TLS handshake */
         size_t nfds = session->server.listen_sockets.size;
