@@ -9,6 +9,7 @@
 #include <poll.h>
 #include <time.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 
 #define WARNING(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
 #ifndef NO_LOG
@@ -32,7 +33,7 @@
 
 #define TLS_SESSION_ID_LEN 32
 #define TLS_MAX_RECORD_SIZE 16384
-#define TLS_MAX_ENCRYPTED_RECORD_SIZE (TLS_MAX_RECORD_SIZE + 256)
+#define TLS_MAX_ENCRYPTED_RECORD_SIZE (TLS_MAX_RECORD_SIZE + 22)
 #define TLS_RAPIDO_HELLO_EXT 100
 
 #define debug_dump(src, len)                                                                                                       \
@@ -433,7 +434,7 @@ rapido_address_id_t rapido_add_address(rapido_t *session, struct sockaddr *local
     memcpy(rapido_array_add(&session->local_addresses, local_address_id), local_address, local_address_len);
     // TODO: Send it
     if (session->is_server) {  // TODO: Ipv6 dualstack compat mode ?
-        int listen_fd = socket(local_address->sa_family, SOCK_STREAM, 0);
+        int listen_fd = socket(local_address->sa_family, SOCK_STREAM | SOCK_NONBLOCK, 0);
         assert_perror(listen_fd == -1);
         memcpy(rapido_array_add(&session->server.listen_sockets, local_address_id), &listen_fd, sizeof(listen_fd));
         int yes = 1;
@@ -696,6 +697,7 @@ int rapido_run_network(rapido_t *session) {
                 socklen_t remote_address_len = sizeof(remote_address_len);
                 int conn_fd = accept(listen_fds[i].fd, (struct sockaddr *)&remote_address, &remote_address_len);
                 assert_perror(conn_fd == -1);
+                assert_perror(fcntl(conn_fd, F_SETFL, O_NONBLOCK));
                 rapido_pending_connection_t *pending_connection = rapido_array_add(&session->server.pending_connections, session->server.next_pending_connection++);
                 pending_connection->socket = conn_fd;
                 if (!ptls_handshake_is_complete(session->tls)) {
@@ -799,73 +801,81 @@ int rapido_run_network(rapido_t *session) {
         connections_index[nfds] = i;
         nfds++;
     });
-    int ret = poll(fds, nfds, 0);
-    assert(ret >= 0 || errno == EINTR);
+    int polled_fds = poll(fds, nfds, 0);
+    assert(polled_fds >= 0 || errno == EINTR);
 
-    for (int i = 0; i < nfds && ret; i++) {
-        rapido_connection_t *connection = rapido_array_get(&session->connections, connections_index[i]);
-        if (fds[i].revents == POLLIN) {
-            uint8_t recvbuf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
-            size_t recvd = recv(fds[i].fd, recvbuf, sizeof(recvbuf), 0);
-            if (!session->is_server && !ptls_handshake_is_complete(session->tls)) {
-                ptls_buffer_t handshake_buffer = {0};
-                ptls_buffer_init(&handshake_buffer, "", 0);
-                size_t consumed = recvd;
-                ret = ptls_handshake(session->tls, &handshake_buffer, recvbuf, &consumed, &session->tls_properties);
-                if (consumed < recvd) {
-                    assert(!"More data after handshake");
+    while (polled_fds > 0) {
+        for (int i = 0; i < nfds; i++) {
+            rapido_connection_t *connection = rapido_array_get(&session->connections, connections_index[i]);
+            if (fds[i].revents == POLLIN) {
+                uint8_t recvbuf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
+                size_t recvd = recv(fds[i].fd, recvbuf, sizeof(recvbuf), 0);
+                if (recvd == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
+                    fds[i].revents &= ~(POLLIN);
+                    polled_fds--;
+                    continue;
                 }
-                if (ret == PTLS_ERROR_IN_PROGRESS) {
-                    assert(!"Fragmented handshake"); // TODO: Handle fragmented handshake
-                }
-                assert(session->tls_properties.collected_extensions == NULL);
-                bool has_rapido_hello = false;
-                for (ptls_raw_extension_t *extension = session->tls_properties.additional_extensions;
-                     extension->type != UINT16_MAX && !has_rapido_hello; extension++) {
-                    if (extension->type == TLS_RAPIDO_HELLO_EXT) {
-                        has_rapido_hello = true;
+                if (!session->is_server && !ptls_handshake_is_complete(session->tls)) {
+                    ptls_buffer_t handshake_buffer = {0};
+                    ptls_buffer_init(&handshake_buffer, "", 0);
+                    size_t consumed = recvd;
+                    int ret = ptls_handshake(session->tls, &handshake_buffer, recvbuf, &consumed, &session->tls_properties);
+                    if (consumed < recvd) {
+                        assert(!"More data after handshake");
                     }
-                }
-                assert(has_rapido_hello);
-                assert(ret == 0);
-                assert(send(fds[i].fd, handshake_buffer.base, handshake_buffer.off, 0) == handshake_buffer.off);
-            } else {
-                size_t recvd_offset = 0;
-                    while (recvd_offset < recvd) {
-                    uint8_t plaintext_buf[TLS_MAX_RECORD_SIZE + 1];
-                    ptls_buffer_t plaintext = { 0 };
-                    ptls_buffer_init(&plaintext, plaintext_buf, sizeof(plaintext_buf));
-                    // TODO: Switch to the connection crypto context
-                    size_t consumed = recvd - recvd_offset;
-                    ret = ptls_receive(session->tls, &plaintext, recvbuf + recvd_offset, &consumed);
-                    recvd_offset += consumed;
                     if (ret == PTLS_ERROR_IN_PROGRESS) {
-                        assert(!"Fragmented data"); // TODO: Handle fragmented data
+                        assert(!"Fragmented handshake"); // TODO: Handle fragmented handshake
                     }
-                    // TODO: Handle the incoming records
-                    for (size_t offset = 0; offset < plaintext.off;) {
-                        rapido_frame_type_t frame_type = plaintext.base[offset];
-                        size_t len = plaintext.off - offset;
-                        switch(frame_type) {
-                        case stream_frame_type: {
-                            rapido_stream_frame_t frame;
-                            assert(rapido_decode_stream_frame(session, plaintext.base + offset, &len, &frame) == 0);
-                            assert(rapido_process_stream_frame(session, &frame) == 0);
+                    assert(session->tls_properties.collected_extensions == NULL);
+                    bool has_rapido_hello = false;
+                    for (ptls_raw_extension_t *extension = session->tls_properties.additional_extensions;
+                         extension->type != UINT16_MAX && !has_rapido_hello; extension++) {
+                        if (extension->type == TLS_RAPIDO_HELLO_EXT) {
+                            has_rapido_hello = true;
                         }
-                            break;
-                        default:
-                            WARNING("Unsupported frame type: %d\n", frame_type);
-                            assert(!"Unsupported frame type");
-                            offset = plaintext.off;
-                            break;
+                    }
+                    assert(has_rapido_hello);
+                    assert(ret == 0);
+                    assert(send(fds[i].fd, handshake_buffer.base, handshake_buffer.off, 0) == handshake_buffer.off);
+                } else {
+                    size_t recvd_offset = 0;
+                    while (recvd_offset < recvd) {
+                        uint8_t plaintext_buf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
+                        ptls_buffer_t plaintext = {0};
+                        ptls_buffer_init(&plaintext, plaintext_buf, sizeof(plaintext_buf));
+                        // TODO: Switch to the connection crypto context
+                        size_t consumed = recvd - recvd_offset;
+                        int ret = ptls_receive(session->tls, &plaintext, recvbuf + recvd_offset, &consumed);
+                        recvd_offset += consumed;
+                        if (ret == PTLS_ERROR_IN_PROGRESS) {
+                            assert(!"Fragmented data"); // TODO: Handle fragmented data
                         }
-                        offset += len;
+                        // TODO: Handle the incoming records
+                        for (size_t offset = 0; offset < plaintext.off;) {
+                            rapido_frame_type_t frame_type = plaintext.base[offset];
+                            size_t len = plaintext.off - offset;
+                            printf("frame_type: %d\n", frame_type);
+                            switch (frame_type) {
+                            case stream_frame_type: {
+                                rapido_stream_frame_t frame;
+                                assert(rapido_decode_stream_frame(session, plaintext.base + offset, &len, &frame) == 0);
+                                assert(rapido_process_stream_frame(session, &frame) == 0);
+                            } break;
+                            default:
+                                WARNING("Unsupported frame type: %d\n", frame_type);
+                                assert(!"Unsupported frame type");
+                                offset = plaintext.off;
+                                break;
+                            }
+                            offset += len;
+                        }
                     }
                 }
             }
         }
     }
 
+    nfds = session->connections.size;
     for (int i = 0; i < nfds; i++) {
         rapido_connection_t *connection = rapido_array_get(&session->connections, connections_index[i]);
         if (connection->attached_streams) {
@@ -875,25 +885,37 @@ int rapido_run_network(rapido_t *session) {
         }
     }
 
-    ret = poll(fds, nfds, 0);
-    assert(ret >= 0 || errno == EINTR);
-    for (int i = 0; i < nfds && ret; i++) {
-        if (fds[i].revents == POLLOUT) {
-            // TODO: Switch to the connection crypto context
-            rapido_connection_t *connection = rapido_array_get(&session->connections, connections_index[i]);
-            for (int j = 0; j < SET_LEN; j++) {
-                if (SET_HAS(connection->attached_streams, j)) {
-                    rapido_stream_t *stream = rapido_array_get(&session->streams, j);
-                    if (stream->send_buffer.size || (stream->fin_set && !stream->fin_sent)) {
-                        uint8_t cleartext[TLS_MAX_RECORD_SIZE + 1];
-                        size_t frame_len = sizeof(cleartext);
-                        assert(rapido_prepare_stream_frame(session, stream, cleartext, &frame_len) == 0);
-                        uint8_t ciphertext[TLS_MAX_ENCRYPTED_RECORD_SIZE];
-                        ptls_buffer_t sendbuf = { 0 };
-                        ptls_buffer_init(&sendbuf, ciphertext, sizeof(ciphertext));
-                        assert(ptls_send(session->tls, &sendbuf, cleartext, frame_len) == 0);
-                        assert(send(connection->socket, sendbuf.base, sendbuf.off, 0) == sendbuf.off);
+    polled_fds = poll(fds, nfds, 0);
+    assert(polled_fds >= 0 || errno == EINTR);
+    while (polled_fds > 0) {
+        for (int i = 0; i < nfds; i++) {
+            if (fds[i].revents == POLLOUT) {
+                // TODO: Switch to the connection crypto context
+                rapido_connection_t *connection = rapido_array_get(&session->connections, connections_index[i]);
+                size_t streams_to_write = SET_SIZE(connection->attached_streams);
+                for (int j = 0; j < SET_LEN && streams_to_write; j++) {
+                    if (SET_HAS(connection->attached_streams, j)) {
+                        rapido_stream_t *stream = rapido_array_get(&session->streams, j);
+                        if (stream->send_buffer.size || (stream->fin_set && !stream->fin_sent)) {
+                            uint8_t cleartext[TLS_MAX_RECORD_SIZE + 1];
+                            size_t frame_len = sizeof(cleartext);
+                            assert(rapido_prepare_stream_frame(session, stream, cleartext, &frame_len) == 0);
+                            uint8_t ciphertext[TLS_MAX_ENCRYPTED_RECORD_SIZE];
+                            ptls_buffer_t sendbuf = {0};
+                            ptls_buffer_init(&sendbuf, ciphertext, sizeof(ciphertext));
+                            assert(ptls_send(session->tls, &sendbuf, cleartext, frame_len) == 0);
+                            size_t sent_len = send(connection->socket, sendbuf.base, sendbuf.off, 0);
+                            if (sent_len < sendbuf.off) {
+                                streams_to_write = 0;
+                            }
+                        } else {
+                            streams_to_write--;
+                        }
                     }
+                }
+                if (streams_to_write == 0) {
+                    fds[i].revents &= ~(POLLOUT);
+                    polled_fds--;
                 }
             }
         }
