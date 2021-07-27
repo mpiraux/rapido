@@ -476,7 +476,13 @@ typedef const struct st_ptls_cipher_suite_t {
     const char *name;
 } ptls_cipher_suite_t;
 
-struct st_ptls_traffic_protection_t;
+struct st_ptls_traffic_protection_t {
+    uint8_t secret[PTLS_MAX_DIGEST_SIZE];
+    size_t epoch;
+    /* the following fields are not used if the key_change callback is set */
+    ptls_aead_context_t *aead;
+    uint64_t seq;
+};
 
 typedef struct st_ptls_message_emitter_t {
     ptls_buffer_t *buf;
@@ -1153,6 +1159,14 @@ ptls_iovec_t ptls_get_client_random(ptls_t *tls);
  * returns the cipher-suite being used
  */
 ptls_cipher_suite_t *ptls_get_cipher(ptls_t *tls);
+/*
+ * returns the traffic protection installed for encryption or decryption
+ */
+struct st_ptls_traffic_protection_t *ptls_get_traffic_protection(ptls_t *tls, int is_dec);
+/*
+ * installs the traffic protection for encryption or decryption
+ */
+void ptls_set_traffic_protection(ptls_t *tls, struct st_ptls_traffic_protection_t *prot, int is_dec);
 /**
  * returns the server-name (NULL if SNI is not used or failed to negotiate)
  */

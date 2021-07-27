@@ -111,6 +111,7 @@ typedef struct {
             rapido_array_t listen_sockets;
             rapido_array_t pending_connections;  // We don't care about the index here
             size_t next_pending_connection;
+            size_t tls_session_ids_sent;
         } server;
     };
 
@@ -128,10 +129,15 @@ typedef struct {
 
     set_t attached_streams;
 
+    struct st_ptls_traffic_protection_t *encryption_ctx;
+    struct st_ptls_traffic_protection_t *decryption_ctx;
+
     struct {
         uint64_t bytes_received;
         uint64_t bytes_sent;
-    } conn_stats;
+    } stats;
+
+    ptls_t *tls;
 } rapido_connection_t;
 
 typedef struct {

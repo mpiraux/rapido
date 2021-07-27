@@ -52,8 +52,8 @@ void test_local_address_server() {
 }
 
 void test_simple_stream_transfer() {
-    rapido_t *client = rapido_new(ctx, false, "localhost", NULL);
-    rapido_t *server = rapido_new(ctx, true, "localhost", NULL);
+    rapido_t *client = rapido_new(ctx, false, "localhost", stderr);
+    rapido_t *server = rapido_new(ctx, true, "localhost", stderr);
     struct sockaddr_in a, b;
     socklen_t len_a = sizeof(a), len_b = sizeof(b);
     ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
@@ -260,10 +260,85 @@ void test_large_transfer() {
     free(server);
 }
 
+void test_join() {
+    rapido_t *client = rapido_new(ctx, false, "localhost", stderr);
+    rapido_t *server = rapido_new(ctx, true, "localhost", stderr);
+    struct sockaddr_in a, b, c;
+    socklen_t len_a = sizeof(a), len_b = sizeof(b), len_c = sizeof(c);
+    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *) &b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *) &c, &len_c, "localhost", "14444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    rapido_address_id_t s_aid_a = rapido_add_address(server, (struct sockaddr *)&a, len_a);
+    rapido_address_id_t c_aid_b = rapido_add_address(client, (struct sockaddr *)&b, len_b);
+    rapido_address_id_t c_aid_c = rapido_add_address(client, (struct sockaddr *)&c, len_c);
+    rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
+    rapido_connection_id_t c_cid = rapido_create_connection(client, c_aid_b, c_aid_a);
+    rapido_run_network(server);
+    rapido_run_network(client);
+    ok(ptls_handshake_is_complete(client->tls));
+    rapido_run_network(server);
+    ok(server->pending_notifications.size == 1);
+    rapido_application_notification_t *notification = rapido_queue_pop(&server->pending_notifications);
+    ok(notification->notification_type == rapido_new_connection);
+    rapido_connection_id_t s_cid = notification->connection_id;
+    ok(ptls_handshake_is_complete(server->tls));
+    rapido_run_network(client);
+
+    rapido_connection_id_t c_cid2 = rapido_create_connection(client, c_aid_c, c_aid_a);
+    ok(c_cid != c_cid2);
+    rapido_run_network(server);
+    rapido_run_network(client);
+    rapido_run_network(server);
+    ok(server->pending_notifications.size == 1);
+    notification = rapido_queue_pop(&server->pending_notifications);
+    ok(notification->notification_type == rapido_new_connection);
+    rapido_connection_id_t s_cid2 = notification->connection_id;
+
+    rapido_stream_id_t stream_id = rapido_open_stream(client);
+    uint8_t stream_data[100000];
+    ok(getrandom(stream_data, sizeof(stream_data), 0) == sizeof(stream_data));
+    ok(rapido_add_to_stream(client, stream_id, stream_data, sizeof(stream_data)) == 0);
+    ok(rapido_close_stream(client, stream_id) == 0);
+    ok(rapido_attach_stream(client, stream_id, c_cid) == 0);
+    ok(rapido_attach_stream(client, stream_id, c_cid2) == 0);
+    rapido_run_network(client);
+    rapido_run_network(server);
+    ok(server->pending_notifications.size == 9);
+    notification = rapido_queue_pop(&server->pending_notifications);
+    ok(notification->notification_type == rapido_new_stream);
+    ok(notification->stream_id == stream_id);
+    bool stream_closed = false;
+    for (int i = 0; i < 8; i++) {
+        notification = rapido_queue_pop(&server->pending_notifications);
+        ok(notification->notification_type == rapido_stream_has_data || (!stream_closed && notification->notification_type == rapido_stream_closed));
+        ok(notification->stream_id == stream_id);
+        if (!stream_closed) {
+            stream_closed = notification->notification_type == rapido_stream_closed;
+        }
+    }
+    ok(stream_closed);
+
+    rapido_connection_t *s_c1 = rapido_array_get(&server->connections, s_cid);
+    rapido_connection_t *s_c2 = rapido_array_get(&server->connections, s_cid2);
+
+    ok(s_c1->stats.bytes_received > 0 && s_c2->stats.bytes_received > 0);
+
+    size_t read_len = 2 * sizeof(stream_data);
+    void *ptr = rapido_read_stream(server, stream_id, &read_len);
+    ok(read_len == sizeof(stream_data));
+    ok(memcmp(ptr, stream_data, read_len) == 0);
+
+    rapido_close(client);
+    rapido_close(server);
+    free(client);
+    free(server);
+}
+
 void test_rapido() {
     subtest("test_local_address_api", test_local_address_api);
     subtest("test_local_address_server", test_local_address_server);
     subtest("test_range_list", test_range_list);
     subtest("test_simple_stream_transfer", test_simple_stream_transfer);
     subtest("test_large_transfer", test_large_transfer);
+    subtest("test_join", test_join);
 }

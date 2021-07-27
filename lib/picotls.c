@@ -122,14 +122,6 @@ static const uint8_t hello_retry_random[PTLS_HELLO_RANDOM_SIZE] = {0xCF, 0x21, 0
                                                                    0x02, 0x1E, 0x65, 0xB8, 0x91, 0xC2, 0xA2, 0x11, 0x16, 0x7A, 0xBB,
                                                                    0x8C, 0x5E, 0x07, 0x9E, 0x09, 0xE2, 0xC8, 0xA8, 0x33, 0x9C};
 
-struct st_ptls_traffic_protection_t {
-    uint8_t secret[PTLS_MAX_DIGEST_SIZE];
-    size_t epoch;
-    /* the following fields are not used if the key_change callback is set */
-    ptls_aead_context_t *aead;
-    uint64_t seq;
-};
-
 struct st_ptls_record_message_emitter_t {
     ptls_message_emitter_t super;
     size_t rec_start;
@@ -4427,6 +4419,14 @@ ptls_iovec_t ptls_get_client_random(ptls_t *tls)
 ptls_cipher_suite_t *ptls_get_cipher(ptls_t *tls)
 {
     return tls->cipher_suite;
+}
+
+struct st_ptls_traffic_protection_t *ptls_get_traffic_protection(ptls_t *tls, int is_dec) {
+    return is_dec ? &tls->traffic_protection.dec : &tls->traffic_protection.enc;
+}
+
+void ptls_set_traffic_protection(ptls_t *tls, struct st_ptls_traffic_protection_t *prot, int is_dec) {
+    memcpy(is_dec ? &tls->traffic_protection.dec : &tls->traffic_protection.enc, prot, sizeof(struct st_ptls_traffic_protection_t));
 }
 
 const char *ptls_get_server_name(ptls_t *tls)
