@@ -210,13 +210,12 @@ void test_range_list() {
 void test_large_transfer() {
     rapido_t *client = rapido_new(ctx, false, "localhost", stderr);
     rapido_t *server = rapido_new(ctx, true, "localhost", stderr);
-    struct sockaddr_in a, b;
-    socklen_t len_a = sizeof(a), len_b = sizeof(b);
+    struct sockaddr_in a;
+    socklen_t len_a = sizeof(a);
     ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     rapido_address_id_t s_aid_a = rapido_add_address(server, (struct sockaddr *)&a, len_a);
-    rapido_address_id_t c_aid_b = rapido_add_address(client, (struct sockaddr *)&b, len_b);
     rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
+    rapido_address_id_t c_aid_b = 0;
     rapido_connection_id_t c_cid = rapido_create_connection(client, c_aid_b, c_aid_a);
     rapido_run_network(server);
     rapido_run_network(client);

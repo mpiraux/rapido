@@ -563,9 +563,9 @@ rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local
     assert(!session->is_server);
     struct sockaddr* local_address = (struct sockaddr *)rapido_array_get(&session->local_addresses, local_address_id);
     struct sockaddr* remote_address = (struct sockaddr *)rapido_array_get(&session->remote_addresses, remote_address_id);
-    assert(local_address != NULL);
+    assert(local_address != NULL || local_address_id == session->next_local_address_id);
     assert(remote_address != NULL);
-    assert(local_address->sa_family == remote_address->sa_family);
+    assert(local_address == NULL || local_address->sa_family == remote_address->sa_family);
 
     rapido_connection_id_t connection_id = session->next_connection_id++;
     uint8_t *tls_session_id = rapido_array_get(&session->tls_session_ids, connection_id);
@@ -577,14 +577,29 @@ rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local
     connection->local_address_id = local_address_id;
     connection->remote_address_id = remote_address_id;
 
-    connection->socket = socket(local_address->sa_family, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    connection->socket = socket(remote_address->sa_family, SOCK_STREAM | SOCK_NONBLOCK, 0);
     assert_perror(connection->socket == -1);
     int yes = 1;
     assert_perror(setsockopt(connection->socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)));
-    assert_perror(bind(connection->socket, local_address, local_address->sa_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6)));
+    if (local_address != NULL) {
+        assert_perror(bind(connection->socket, local_address, local_address->sa_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6)));
+    }
     int ret = connect(connection->socket, remote_address, remote_address->sa_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6));
     if (ret && errno != EINPROGRESS) {
         assert_perror(ret);
+    }
+
+    if (local_address == NULL) {
+        local_address = rapido_array_add(&session->local_addresses, local_address_id);
+        session->next_local_address_id++;
+        socklen_t local_address_len = sizeof(struct sockaddr_storage);
+        assert_perror(getsockname(connection->socket, local_address, &local_address_len));
+        LOG {
+            char a[INET6_ADDRSTRLEN];
+            QLOG(session, "network", "new_local_address", "", "{\"local_address_id\": \"%d\", \"local_address\": \"%s:%d\"}", local_address_id,
+                 inet_ntop(local_address->sa_family, (local_address->sa_family == AF_INET ? (void *) &((struct sockaddr_in *) local_address)->sin_addr : &((struct sockaddr_in6 *) local_address)->sin6_addr), a, sizeof(a)),
+                 ntohs(local_address->sa_family == AF_INET ? ((struct sockaddr_in *) local_address)->sin_port : ((struct sockaddr_in6 *) local_address)->sin6_port));
+        }
     }
 
     ptls_buffer_t handshake_buffer = { 0 };
