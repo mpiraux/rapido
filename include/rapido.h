@@ -28,6 +28,8 @@ typedef uint64_t set_t;
 #define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t) e))))
 #define SET_SIZE(bs) __builtin_popcount(bs)
 
+#define TLS_SESSION_ID_LEN 32
+
 typedef struct {
     size_t capacity;
     size_t size;
@@ -144,6 +146,7 @@ typedef struct {
     int socket;
     ptls_context_t *tls_ctx;
     ptls_t *tls;
+    uint8_t tls_session_id[TLS_SESSION_ID_LEN];
 } rapido_pending_connection_t;
 
 typedef struct {

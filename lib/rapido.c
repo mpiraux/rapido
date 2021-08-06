@@ -31,7 +31,6 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
-#define TLS_SESSION_ID_LEN 32
 #define TLS_MAX_RECORD_SIZE 16384
 #define TLS_MAX_ENCRYPTED_RECORD_SIZE (TLS_MAX_RECORD_SIZE + 22)
 #define TLS_RAPIDO_HELLO_EXT 100
@@ -58,6 +57,16 @@
             fprintf(stderr, "\n");                                                                                                 \
         }                                                                                                                          \
     } while (0);
+
+void tohex(uint8_t *in, size_t len, char *out) {
+    uint8_t *max_in = in + len;
+    const char *hex = "0123456789abcdef";
+    for (; in < max_in; out += 2, in++) {
+        out[0] = hex[(*in >> 4) & 0xf];
+        out[1] = hex[*in & 0xf];
+    }
+    *out = 0;
+}
 
 int collect_rapido_extensions(ptls_t *tls, struct st_ptls_handshake_properties_t *properties, uint16_t type) {
     return type == TLS_RAPIDO_HELLO_EXT;
@@ -454,7 +463,7 @@ typedef struct {
 } rapido_ebpf_code_frame_t;
 
 int rapido_frame_is_ack_eliciting(rapido_frame_type_t frame_id) {
-    return frame_id == padding_frame_type || frame_id == ack_frame_type;
+    return frame_id != padding_frame_type && frame_id != ack_frame_type;
 }
 
 rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, char *server_name, FILE *qlog_out) {
@@ -640,7 +649,7 @@ int rapido_add_to_stream(rapido_t *session, rapido_stream_id_t stream_id, void *
     rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
     assert(stream != NULL);
     rapido_stream_buffer_push(&stream->send_buffer, data, len);
-    QLOG(session, "api", "rapido_add_to_stream_stream", "", "{\"stream_id\": \"%d\", \"len\": \"%zu\"}", stream_id, len);
+    QLOG(session, "api", "rapido_add_to_stream", "", "{\"stream_id\": \"%d\", \"len\": \"%zu\"}", stream_id, len);
     return 0;
 }
 void *rapido_read_stream(rapido_t *session, rapido_stream_id_t stream_id, size_t *len) {
@@ -774,7 +783,12 @@ int rapido_decode_new_session_id_frame(rapido_t *session, uint8_t *buf, size_t *
     frame->tls_session_id = buf + consumed;
     consumed += TLS_SESSION_ID_LEN;
 
-    QLOG(session, "frames", "decode_new_session_id_frame", "", "{\"sequence\": \"%d\"}", frame->sequence);
+    LOG {
+        char tls_session_id_str[TLS_SESSION_ID_LEN * 2 + 1];
+        tohex(frame->tls_session_id, TLS_SESSION_ID_LEN, tls_session_id_str);
+        QLOG(session, "frames", "decode_new_session_id_frame", "", "{\"sequence\": \"%d\", \"session_id\": \"%s\"}",
+             frame->sequence, tls_session_id_str);
+    }
 
     *len = consumed;
     return 0;
@@ -784,6 +798,43 @@ int rapido_process_new_session_id_frame(rapido_t *session, rapido_new_session_id
     assert(!session->is_server);
     memcpy(rapido_array_add(&session->tls_session_ids, frame->sequence), frame->tls_session_id, TLS_SESSION_ID_LEN);
     return 0;
+}
+
+int rapido_prepare_record(rapido_t *session, rapido_connection_t *connection, uint8_t *cleartext, size_t *len) {
+    assert(*len >= TLS_MAX_RECORD_SIZE);
+    size_t consumed = 0;
+    int more_to_write = 0;
+
+    if (session->is_server) {
+        for (int i = session->server.tls_session_ids_sent; consumed < TLS_MAX_RECORD_SIZE && i < session->tls_session_ids.size; i++) {
+            size_t frame_len = *len - consumed;
+            rapido_prepare_new_session_id_frame(session, rapido_array_get(&session->tls_session_ids, i), i, cleartext + consumed, &frame_len);
+            if (frame_len > 0) {
+                consumed += frame_len;
+                session->server.tls_session_ids_sent++;
+            }
+        }
+        more_to_write |= session->tls_session_ids.size - session->server.tls_session_ids_sent > 0;
+    }
+
+    size_t streams_to_write = SET_SIZE(connection->attached_streams);
+    for (int i = 0; consumed < TLS_MAX_RECORD_SIZE && i < SET_LEN && streams_to_write; i++) {
+        if (SET_HAS(connection->attached_streams, i)) {
+            rapido_stream_t *stream = rapido_array_get(&session->streams, i);
+            if (stream->send_buffer.size || (stream->fin_set && !stream->fin_sent)) {
+                size_t frame_len = *len - consumed;
+                assert(rapido_prepare_stream_frame(session, stream, cleartext + consumed, &frame_len) == 0);
+                consumed += frame_len;
+            } else {
+                streams_to_write--;
+            }
+        }
+    }
+    more_to_write |= streams_to_write > 0;
+
+    assert(consumed <= TLS_MAX_RECORD_SIZE);
+    *len = consumed;
+    return more_to_write;
 }
 
 int rapido_run_network(rapido_t *session) {
@@ -870,46 +921,30 @@ int rapido_run_network(rapido_t *session) {
                             session->tls_properties.additional_extensions[0].data = ptls_iovec_init(NULL, 0);
                             session->tls_properties.additional_extensions[1].type = UINT16_MAX;
                         }
+                        if (!ptls_handshake_is_complete(connection->tls)) {
+                            memcpy(connection->tls_session_id, session->tls_properties.server.tls_session_id.base, session->tls_properties.server.tls_session_id.len);
+                        }
                         assert(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) == handshake_buffer.off);
                         ptls_buffer_dispose(&handshake_buffer);
                         /* ClientFinished */
                         if (ptls_handshake_is_complete(connection->tls)) {
                             int tls_session_id_sequence = -1;
-                            rapido_array_iter(&session->tls_session_ids, uint8_t * tls_session_id, {
-                                if (memcmp(tls_session_id, session->tls_properties.server.tls_session_id.base,
-                                           session->tls_properties.server.tls_session_id.len) == 0) {
+                            rapido_array_iter(&session->tls_session_ids, uint8_t *tls_session_id, {
+                                if (memcmp(tls_session_id, connection->tls_session_id, TLS_SESSION_ID_LEN) == 0) {
                                     tls_session_id_sequence = i;
                                     break;
                                 }
                             });
                             if (tls_session_id_sequence == -1) {
                                 assert(session->tls_session_ids.size == 0);
-                                memcpy(rapido_array_add(&session->tls_session_ids, 0), session->tls_properties.server.tls_session_id.base,
-                                       session->tls_properties.server.tls_session_id.len);
+                                memcpy(rapido_array_add(&session->tls_session_ids, 0), connection->tls_session_id,
+                                       TLS_SESSION_ID_LEN);
                                 session->server.tls_session_ids_sent = 1;
                                 tls_session_id_sequence = 0;
 
                                 for (int sid = 1; sid < DEFAULT_TCPLS_SESSION_ID_AMOUNT; sid++) {
-                                    uint8_t *tls_session_id = rapido_array_add(&session->tls_session_ids, sid);
-                                    session->tls_ctx->random_bytes(tls_session_id, TLS_SESSION_ID_LEN);
+                                    session->tls_ctx->random_bytes(rapido_array_add(&session->tls_session_ids, sid), TLS_SESSION_ID_LEN);
                                 }
-
-                                // TODO: Send it as part of the global sending logic
-                                uint8_t cleartext[TLS_MAX_RECORD_SIZE + 1];
-                                size_t offset = 0;
-                                for (int sid = 1; sid < session->tls_session_ids.size; sid++) {
-                                    size_t consumed = sizeof(cleartext) - offset;
-                                    rapido_prepare_new_session_id_frame(session, rapido_array_get(&session->tls_session_ids, sid), sid, cleartext + offset, &consumed);
-                                    offset += consumed;
-                                    session->server.tls_session_ids_sent++;
-                                }
-
-                                uint8_t ciphertext[TLS_MAX_ENCRYPTED_RECORD_SIZE];
-                                ptls_buffer_t sendbuf = {0};
-                                ptls_buffer_init(&sendbuf, ciphertext, sizeof(ciphertext));
-                                assert(ptls_send(session->tls, &sendbuf, cleartext, offset) == 0);
-                                size_t sent_len = send(connection->socket, sendbuf.base, sendbuf.off, 0);
-                                assert(sent_len == sendbuf.off);
                             }
                             rapido_connection_t *new_connection = rapido_array_add(&session->connections, tls_session_id_sequence);
                             memset(new_connection, 0, sizeof(rapido_connection_t));
@@ -931,7 +966,6 @@ int rapido_run_network(rapido_t *session) {
                         close(connection->socket);
                         rapido_array_delete(&session->server.pending_connections, connections_index[i]);
                     }
-                    // TODO: Free TLS state if JOIN
                 }
             }
         }
@@ -999,7 +1033,6 @@ int rapido_run_network(rapido_t *session) {
                         uint8_t plaintext_buf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
                         ptls_buffer_t plaintext = {0};
                         ptls_buffer_init(&plaintext, plaintext_buf, sizeof(plaintext_buf));
-                        // TODO: Switch to the connection crypto context
                         size_t consumed = recvd - recvd_offset;
                         int ret = ptls_receive(session->tls, &plaintext, recvbuf + recvd_offset, &consumed);
                         recvd_offset += consumed;
@@ -1007,7 +1040,6 @@ int rapido_run_network(rapido_t *session) {
                             assert(!"Fragmented data"); // TODO: Handle fragmented data
                         }
                         assert(ret == 0);
-                        // TODO: Handle the incoming records
                         QLOG(session, "transport", "receive_record", "", "{\"connection_id\": \"%zu\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}", connections_index[i], ptls_get_traffic_protection(session->tls, 1)->seq - 1, consumed);
                         for (size_t offset = 0; offset < plaintext.off;) {
                             rapido_frame_type_t frame_type = plaintext.base[offset];
@@ -1042,7 +1074,7 @@ int rapido_run_network(rapido_t *session) {
     nfds = session->connections.size;
     for (int i = 0; i < nfds; i++) {
         rapido_connection_t *connection = rapido_array_get(&session->connections, connections_index[i]);
-        if (connection->attached_streams && ptls_handshake_is_complete(connection->tls)) {
+        if (ptls_handshake_is_complete(connection->tls)) {
             fds[i].events = POLLOUT;
         } else {
             fds[i].fd = ~fds[i].fd;
@@ -1055,34 +1087,24 @@ int rapido_run_network(rapido_t *session) {
         for (int i = 0; i < nfds; i++) {
             if (fds[i].revents == POLLOUT) {
                 rapido_connection_t *connection = rapido_array_get(&session->connections, connections_index[i]);
-                ptls_set_traffic_protection(session->tls, connection->encryption_ctx, 0);
-                size_t streams_to_write = SET_SIZE(connection->attached_streams);
-                for (int j = 0; j < SET_LEN && streams_to_write; j++) {
-                    if (SET_HAS(connection->attached_streams, j)) {
-                        rapido_stream_t *stream = rapido_array_get(&session->streams, j);
-                        if (stream->send_buffer.size || (stream->fin_set && !stream->fin_sent)) {
-                            uint8_t cleartext[TLS_MAX_RECORD_SIZE + 1];
-                            size_t frame_len = sizeof(cleartext);
-                            assert(rapido_prepare_stream_frame(session, stream, cleartext, &frame_len) == 0);
-                            uint8_t ciphertext[TLS_MAX_ENCRYPTED_RECORD_SIZE];
-                            ptls_buffer_t sendbuf = {0};
-                            ptls_buffer_init(&sendbuf, ciphertext, sizeof(ciphertext));
-                            assert(ptls_send(session->tls, &sendbuf, cleartext, frame_len) == 0);
-                            QLOG(session, "transport", "prepare_record", "stream_data_to_send", "{\"connection_id\": \"%zu\", \"record_sequence\": \"%lu\", \"stream_id\": \"%d\", \"ciphertext_len\": \"%zu\"}", connections_index[i], ptls_get_traffic_protection(session->tls, 0)->seq - 1, j, sendbuf.off);
-                            size_t sent_len = send(connection->socket, sendbuf.base, sendbuf.off, 0);
-                            if (sent_len < sendbuf.off) {
-                                streams_to_write = 0;
-                            }
-                            connection->stats.bytes_sent += frame_len;
-                        } else {
-                            streams_to_write--;
-                        }
+                uint8_t cleartext[TLS_MAX_RECORD_SIZE];
+                size_t cleartext_len = sizeof(cleartext);
+                int more_to_write = rapido_prepare_record(session, connection, cleartext, &cleartext_len);
+                if (cleartext_len > 0) {
+                    ptls_set_traffic_protection(session->tls, connection->encryption_ctx, 0);
+                    uint8_t ciphertext[TLS_MAX_ENCRYPTED_RECORD_SIZE];
+                    ptls_buffer_t sendbuf = {0};
+                    ptls_buffer_init(&sendbuf, ciphertext, sizeof(ciphertext));
+                    assert(ptls_send(session->tls, &sendbuf, cleartext, cleartext_len) == 0);
+                    QLOG(session, "transport", "sent_record", "", "{\"connection_id\": \"%zu\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}", connections_index[i], ptls_get_traffic_protection(session->tls, 0)->seq - 1, sendbuf.off);
+                    size_t sent_len = send(connection->socket, sendbuf.base, sendbuf.off, 0);
+                    if (sent_len < sendbuf.off) {
+                        more_to_write = 0;
                     }
+                    connection->stats.bytes_sent += sent_len;
+                    connection->encryption_ctx->seq = ptls_get_traffic_protection(session->tls, 0)->seq;
                 }
-
-
-                connection->encryption_ctx->seq = ptls_get_traffic_protection(session->tls, 0)->seq;
-                if (streams_to_write == 0) {
+                if (more_to_write == 0) {
                     fds[i].revents &= ~(POLLOUT);
                     polled_fds--;
                 }
