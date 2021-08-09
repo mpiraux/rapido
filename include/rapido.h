@@ -185,7 +185,7 @@ typedef struct {
     };
 } rapido_application_notification_t;
 
-rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, char *server_name, FILE *qlog_out);
+rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, const char *server_name, FILE *qlog_out);
 
 rapido_address_id_t rapido_add_address(rapido_t *session, struct sockaddr* addr, socklen_t addr_len);
 rapido_address_id_t rapido_add_remote_address(rapido_t *session, struct sockaddr* addr, socklen_t addr_len);
