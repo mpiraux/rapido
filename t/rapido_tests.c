@@ -25,7 +25,7 @@ void test_local_address_api() {
     ok(id_a != id_c && id_b != id_c);
     ok(rapido_remove_address(s, 42) != 0);
     ok(rapido_remove_address(s, id_c) == 0);
-    rapido_close(s);
+    rapido_free(s);
     free(s);
 }
 
@@ -47,7 +47,7 @@ void test_local_address_server() {
     ok(id_a != id_c && id_b != id_c);
     ok(rapido_remove_address(s, 42) != 0);
     ok(rapido_remove_address(s, id_c) == 0);
-    rapido_close(s);
+    rapido_free(s);
     free(s);
 }
 
@@ -178,8 +178,8 @@ void test_simple_stream_transfer() {
     ok(read_len == 22);
     ok(memcmp(str, "Stream reordering test", read_len) == 0);
 
-    rapido_close(client);
-    rapido_close(server);
+    rapido_free(client);
+    rapido_free(server);
     free(client);
     free(server);
 }
@@ -204,7 +204,7 @@ void test_range_list() {
     rapido_peek_range(&list, &l, &h);
     ok(l == 2 && h == 3);
     ok(rapido_trim_range(&list, 10) == 3);
-    ok(rapido_trim_range(&list, 10) == 0);
+    ok(rapido_trim_range(&list, 10) == -1);
 }
 
 void test_large_transfer() {
@@ -253,8 +253,8 @@ void test_large_transfer() {
     ok(read_len == sizeof(stream_data));
     ok(memcmp(ptr, stream_data, read_len) == 0);
 
-    rapido_close(client);
-    rapido_close(server);
+    rapido_free(client);
+    rapido_free(server);
     free(client);
     free(server);
 }
@@ -327,8 +327,13 @@ void test_join() {
     ok(read_len == sizeof(stream_data));
     ok(memcmp(ptr, stream_data, read_len) == 0);
 
-    rapido_close(client);
-    rapido_close(server);
+    read_len = 2 * sizeof(stream_data);
+    ptr = rapido_read_stream(server, stream_id, &read_len);
+    ok(read_len == 0);
+    ok(ptr == NULL);
+
+    rapido_free(client);
+    rapido_free(server);
     free(client);
     free(server);
 }

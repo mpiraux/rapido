@@ -85,7 +85,6 @@ void *rapido_queue_pop(rapido_queue_t *queue);
     } while (0)
 
 typedef struct {
-    /*TODO: Make these per connection */
     ptls_t *tls;
     ptls_context_t *tls_ctx;
     ptls_handshake_properties_t tls_properties;
@@ -134,6 +133,9 @@ typedef struct {
     struct st_ptls_traffic_protection_t *encryption_ctx;
     struct st_ptls_traffic_protection_t *decryption_ctx;
 
+    rapido_stream_buffer_t receive_buffer;
+    rapido_stream_buffer_t send_buffer;
+
     struct {
         uint64_t bytes_received;
         uint64_t bytes_sent;
@@ -148,6 +150,8 @@ typedef struct {
     ptls_t *tls;
     uint8_t tls_session_id[TLS_SESSION_ID_LEN];
 } rapido_pending_connection_t;
+
+typedef void (* rapido_stream_producer_t)(rapido_t *, rapido_stream_id_t, void *);
 
 typedef struct {
     rapido_stream_id_t stream_id;
@@ -164,6 +168,9 @@ typedef struct {
     bool fin_set;
     bool fin_sent;
 
+    rapido_stream_producer_t producer;
+    void *producer_ctx;
+
     uint64_t bytes_received;
     uint64_t bytes_sent;
 } rapido_stream_t;
@@ -172,6 +179,7 @@ typedef struct {
     enum {
         rapido_new_connection,
         rapido_connection_failed,
+        rapido_connection_closed,
         rapido_new_stream,
         rapido_stream_has_data,
         rapido_stream_closed,
@@ -199,10 +207,11 @@ rapido_stream_id_t rapido_open_stream(rapido_t *session);
 int rapido_attach_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
 int rapido_remove_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
 int rapido_add_to_stream(rapido_t *session, rapido_stream_id_t stream_id, void *data, size_t len);
+int rapido_set_stream_producer(rapido_t *session, rapido_stream_id_t stream_id, rapido_stream_producer_t producer, void *producer_ctx);
 void *rapido_read_stream(rapido_t *session, rapido_stream_id_t stream_id, size_t *len);
 int rapido_close_stream(rapido_t *session, rapido_stream_id_t stream_id);
 
 int rapido_receive(rapido_t *session);
-int rapido_close(rapido_t *session);
+int rapido_free(rapido_t *session);
 
 #endif
