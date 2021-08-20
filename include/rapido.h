@@ -37,6 +37,17 @@ typedef struct {
     uint8_t *data;
 } rapido_array_t;
 
+#define rapido_array_iter(a, e, bl)                                                                                                \
+    do {                                                                                                                           \
+        for (int i = 0; i < (a)->capacity; i++) {                                                                                  \
+            size_t offset = (1 + (a)->item_size) * i;                                                                               \
+            if ((a)->data[offset] == true) {                                                                                       \
+                e = (void *)(a)->data + offset + 1;                                                                                \
+                bl                                                                                                                 \
+            }                                                                                                                      \
+        }                                                                                                                          \
+    } while (0)
+
 typedef struct {
     size_t capacity;
     size_t size;
@@ -83,6 +94,13 @@ void *rapido_queue_pop(rapido_queue_t *queue);
             bl                                                                                                                     \
         }                                                                                                                          \
     } while (0)
+
+typedef struct {
+    uint64_t tls_record_sequence;
+    size_t ciphertext_len;
+    bool ack_eliciting;
+    uint64_t send_time;
+} rapido_record_metadata_t;
 
 typedef struct {
     ptls_t *tls;
@@ -135,6 +153,14 @@ typedef struct {
 
     rapido_stream_buffer_t receive_buffer;
     rapido_stream_buffer_t send_buffer;
+
+    rapido_queue_t sent_records;
+    size_t sent_offset;
+    uint64_t last_received_record_sequence;
+
+    bool require_ack;
+    uint64_t last_receive_time;
+    size_t non_ack_eliciting_count;
 
     struct {
         uint64_t bytes_received;

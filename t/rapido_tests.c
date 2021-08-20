@@ -228,18 +228,18 @@ void test_large_transfer() {
     ok(ptls_handshake_is_complete(server->tls));
 
     rapido_stream_id_t stream_id = rapido_open_stream(client);
-    uint8_t stream_data[100000];
+    uint8_t stream_data[1000000];
     ok(getrandom(stream_data, sizeof(stream_data), 0) == sizeof(stream_data));
     ok(rapido_add_to_stream(client, stream_id, stream_data, sizeof(stream_data)) == 0);
     ok(rapido_close_stream(client, stream_id) == 0);
     ok(rapido_attach_stream(client, stream_id, c_cid) == 0);
     rapido_run_network(client);
     rapido_run_network(server);
-    ok(server->pending_notifications.size == 9);
+    ok(server->pending_notifications.size == 64);
     notification = rapido_queue_pop(&server->pending_notifications);
     ok(notification->notification_type == rapido_new_stream);
     ok(notification->stream_id == stream_id);
-    for (int i = 0; i < 7; i++) {
+    while (server->pending_notifications.size > 1) {
         notification = rapido_queue_pop(&server->pending_notifications);
         ok(notification->notification_type == rapido_stream_has_data);
         ok(notification->stream_id == stream_id);
@@ -301,6 +301,12 @@ void test_join() {
     ok(rapido_attach_stream(client, stream_id, c_cid) == 0);
     ok(rapido_attach_stream(client, stream_id, c_cid2) == 0);
     rapido_run_network(client);
+    size_t client_send_buf[2];
+    size_t client_send_recs[2];
+    rapido_array_iter(&client->connections, rapido_connection_t *connection, {
+        client_send_buf[connection->connection_id] = connection->send_buffer.size;
+        client_send_recs[connection->connection_id] = connection->sent_records.size;
+    });
     rapido_run_network(server);
     ok(server->pending_notifications.size == 9);
     notification = rapido_queue_pop(&server->pending_notifications);
@@ -316,6 +322,18 @@ void test_join() {
         }
     }
     ok(stream_closed);
+    ok(server->pending_notifications.size == 0);
+    rapido_array_iter(&server->connections, rapido_connection_t *connection, {
+        ok(!connection->require_ack);
+    });
+    rapido_run_network(client);
+    rapido_array_iter(&client->connections, rapido_connection_t *connection, {
+        ok(!connection->require_ack);
+    });
+    rapido_array_iter(&client->connections, rapido_connection_t *connection, {
+        ok(connection->send_buffer.size < client_send_buf[connection->connection_id]);
+        ok(connection->sent_records.size < client_send_recs[connection->connection_id]);
+    });
 
     rapido_connection_t *s_c1 = rapido_array_get(&server->connections, s_cid);
     rapido_connection_t *s_c2 = rapido_array_get(&server->connections, s_cid2);
