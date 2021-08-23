@@ -89,7 +89,7 @@ void *rapido_queue_pop(rapido_queue_t *queue);
 
 #define rapido_queue_iter(q, e, bl)                                                                                                \
     do {                                                                                                                           \
-        while (q->size) {                                                                                                          \
+        while ((q)->size) {                                                                                                          \
             e = rapido_queue_pop(q);                                                                                               \
             bl                                                                                                                     \
         }                                                                                                                          \
@@ -98,7 +98,7 @@ void *rapido_queue_pop(rapido_queue_t *queue);
 typedef struct {
     uint64_t tls_record_sequence;
     size_t ciphertext_len;
-    bool ack_eliciting;
+    bool ack_eliciting;  // Also implies 'retransmittable'
     uint64_t send_time;
 } rapido_record_metadata_t;
 
@@ -150,6 +150,7 @@ typedef struct {
 
     struct st_ptls_traffic_protection_t *encryption_ctx;
     struct st_ptls_traffic_protection_t *decryption_ctx;
+    struct st_ptls_traffic_protection_t *own_decryption_ctx;
 
     rapido_stream_buffer_t receive_buffer;
     rapido_stream_buffer_t send_buffer;
@@ -161,6 +162,8 @@ typedef struct {
     bool require_ack;
     uint64_t last_receive_time;
     size_t non_ack_eliciting_count;
+
+    set_t retransmit_connections;
 
     struct {
         uint64_t bytes_received;
@@ -227,7 +230,8 @@ int rapido_remove_address(rapido_t *session, rapido_address_id_t local_address_i
 
 rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local_address_id, uint8_t remote_address_id);
 int rapido_run_network(rapido_t *session);
-int rapido_close_connection(rapido_t *session, rapido_connection_id_t *connection_id);
+int rapido_retransmit_connection(rapido_t *session, rapido_connection_id_t connection_id, set_t connections);
+int rapido_close_connection(rapido_t *session, rapido_connection_id_t connection_id);
 
 rapido_stream_id_t rapido_open_stream(rapido_t *session);
 int rapido_attach_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);

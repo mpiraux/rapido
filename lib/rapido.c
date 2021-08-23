@@ -131,6 +131,14 @@ int setup_connection_crypto_context(rapido_t *session, rapido_connection_t *conn
         ptls_aead_free(ctx_enc->aead);
     }
 
+    connection->own_decryption_ctx = malloc(sizeof(struct st_ptls_traffic_protection_t));
+    assert(connection->own_decryption_ctx);
+    memcpy(connection->own_decryption_ctx, ctx_enc, sizeof(struct st_ptls_traffic_protection_t));
+    connection->own_decryption_ctx->aead = ptls_aead_new_direct(cipher->aead, 0, key, iv);
+    if (connection->connection_id > 0) {
+        connection->own_decryption_ctx->seq = 0;
+    }
+
     if ((ret = ptls_hkdf_expand_label(cipher->hash, key, cipher->aead->key_size,
                                       ptls_iovec_init(ctx_dec->secret, cipher->hash->digest_size), "key", ptls_iovec_init(NULL, 0),
                                       session->tls_ctx->hkdf_label_prefix__obsolete)) != 0)
@@ -492,6 +500,23 @@ int rapido_frame_is_ack_eliciting(rapido_frame_type_t frame_id) {
     return frame_id != padding_frame_type && frame_id != ack_frame_type;
 }
 
+void rapido_connection_init(rapido_t *session, rapido_connection_t *connection) {
+    memset(connection, 0, sizeof(rapido_connection_t));
+    connection->last_received_record_sequence = -1;
+    rapido_stream_buffer_init(&connection->receive_buffer, 32 * TLS_MAX_RECORD_SIZE);
+    rapido_stream_buffer_init(&connection->send_buffer, 32 * TLS_MAX_RECORD_SIZE);
+    rapido_queue_init(&connection->sent_records, sizeof(rapido_record_metadata_t), 512);
+}
+
+void rapido_connection_close(rapido_t *session, rapido_connection_t *connection) {
+    close(connection->socket);
+    connection->socket = -1;
+    rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
+    notification->notification_type = rapido_connection_closed;
+    notification->connection_id = connection->connection_id;
+    // TODO: Properly close the connection
+}
+
 rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, const char *server_name, FILE *qlog_out) {
     rapido_t *session = calloc(1, sizeof(rapido_t));
     assert(session != NULL);
@@ -598,15 +623,10 @@ rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local
     assert(connection_id == 0 || tls_session_id != NULL);
 
     rapido_connection_t *connection = rapido_array_add(&session->connections, connection_id);
-    memset(connection, 0, sizeof(rapido_connection_t));
+    rapido_connection_init(session, connection);
     connection->connection_id = connection_id;
     connection->local_address_id = local_address_id;
     connection->remote_address_id = remote_address_id;
-    connection->last_received_record_sequence = -1;
-    rapido_stream_buffer_init(&connection->receive_buffer, 32 * TLS_MAX_RECORD_SIZE);
-    rapido_stream_buffer_init(&connection->send_buffer, 32 * TLS_MAX_RECORD_SIZE);
-    rapido_queue_init(&connection->sent_records, sizeof(rapido_record_metadata_t), 512);
-
     connection->socket = socket(remote_address->sa_family, SOCK_STREAM | SOCK_NONBLOCK, 0);
     assert_perror(connection->socket == -1);
     int yes = 1;
@@ -653,6 +673,13 @@ rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local
 
     QLOG(session, "api", "rapido_create_connection", "", "{\"connection_id\": \"%d\", \"local_address_id\": \"%d\", \"remote_address_id\": \"%d\"}", connection_id, local_address_id, remote_address_id);
     return connection_id;
+}
+
+int rapido_close_connection(rapido_t *session, rapido_connection_id_t connection_id) {
+    rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
+    assert(connection != NULL);
+    close(connection->socket);
+    connection->socket = -1;
 }
 
 rapido_stream_id_t rapido_open_stream(rapido_t *session) {
@@ -945,12 +972,80 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
     if (!wants_to_send && session->is_server) {
         wants_to_send |= session->tls_session_ids.size - session->server.tls_session_ids_sent > 0;
     }
+
+    if (!wants_to_send && connection->retransmit_connections) {
+        for (int j = 0; j < SET_LEN && !wants_to_send; j++) {
+            if (SET_HAS(connection->retransmit_connections, j)) {
+                rapido_connection_t *source_connection = rapido_array_get(&session->connections, j);
+                if (source_connection->sent_records.size > 0) {
+                    rapido_record_metadata_t *record = NULL;
+                    while (source_connection->sent_records.size &&
+                           (record = rapido_queue_peek(&source_connection->sent_records)) &&
+                           !record->ack_eliciting) {
+                        size_t record_len = record->ciphertext_len;
+                        rapido_stream_buffer_get(&source_connection->send_buffer, &record_len);
+                        if (record_len < record->ciphertext_len) {
+                            record_len = record->ciphertext_len - record_len;
+                            rapido_stream_buffer_get(&source_connection->send_buffer, &record_len);
+                        }
+                        rapido_queue_pop(&source_connection->sent_records);
+                    }
+                    wants_to_send |= record->ack_eliciting;
+                }
+                if (source_connection->sent_records.size == 0) {
+                    SET_REMOVE(connection->retransmit_connections, j);
+                }
+            }
+        }
+    }
+
     return wants_to_send;
 }
 
 int rapido_prepare_record(rapido_t *session, rapido_connection_t *connection, uint8_t *cleartext, size_t *len, bool *is_ack_eliciting) {
     *len = min(*len, TLS_MAX_RECORD_SIZE);
+    *is_ack_eliciting = false;
     size_t consumed = 0;
+
+    if (connection->retransmit_connections) {
+        for (int j = 0; j < SET_LEN && consumed < *len; j++) {
+            if (SET_HAS(connection->retransmit_connections, j)) {
+                rapido_connection_t *source_connection = rapido_array_get(&session->connections, j);
+                rapido_queue_iter(&source_connection->sent_records, rapido_record_metadata_t *record, {
+                    if (record->ack_eliciting) {
+                        if (consumed + TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(record->ciphertext_len) > *len) {
+                            break;
+                        }
+                        source_connection->own_decryption_ctx->seq = record->tls_record_sequence;
+                        ptls_set_traffic_protection(session->tls, source_connection->own_decryption_ctx, 1);
+                        uint8_t record_plaintext[TLS_MAX_ENCRYPTED_RECORD_SIZE];
+                        ptls_buffer_t plaintext = {0};
+                        ptls_buffer_init(&plaintext, record_plaintext, sizeof(record_plaintext));
+                        size_t record_len = record->ciphertext_len;
+                        uint8_t *ciphertext = rapido_stream_buffer_peek(&source_connection->send_buffer, 0, &record_len);
+                        assert(record_len == record->ciphertext_len);
+                        size_t record_consumed = record_len;
+                        int ret = ptls_receive(session->tls, &plaintext, ciphertext, &record_consumed);
+                        QLOG(session, "transport", "retransmit_record", "", "{\"connection_id\": \"%d\", \"record_sequence\": \"%lu\"}", source_connection->connection_id, record->tls_record_sequence);
+                        assert(ret == 0 && record_consumed == record_len);
+                        assert(!plaintext.is_allocated);
+                        memcpy(cleartext + consumed, plaintext.base, plaintext.off);
+                        consumed += plaintext.off;
+                        *is_ack_eliciting = true;
+                    }
+                    size_t record_len = record->ciphertext_len;
+                    rapido_stream_buffer_get(&source_connection->send_buffer, &record_len);
+                    if (record_len < record->ciphertext_len) {
+                        record_len = record->ciphertext_len - record_len;
+                        rapido_stream_buffer_get(&source_connection->send_buffer, &record_len);
+                    }
+                    if (consumed >= *len) {
+                        break;
+                    }
+                });
+            }
+        }
+    }
 
     if (session->is_server) {
         for (int i = session->server.tls_session_ids_sent; consumed < *len && i < session->tls_session_ids.size; i++) {
@@ -964,7 +1059,7 @@ int rapido_prepare_record(rapido_t *session, rapido_connection_t *connection, ui
         }
     }
 
-    {
+    if (consumed < *len) {
         size_t frame_len = *len - consumed;
         rapido_prepare_ack_frame(session, cleartext + consumed, &frame_len);
         consumed += frame_len;
@@ -1138,14 +1233,11 @@ do {
                                 }
                             }
                             rapido_connection_t *new_connection = rapido_array_add(&session->connections, tls_session_id_sequence);
-                            memset(new_connection, 0, sizeof(rapido_connection_t));
+                            rapido_connection_init(session, new_connection);
                             new_connection->socket = connection->socket;
                             new_connection->connection_id = tls_session_id_sequence;
                             new_connection->tls = session->tls;
-                            new_connection->last_received_record_sequence = -1;
-                            rapido_stream_buffer_init(&new_connection->receive_buffer, 32 * TLS_MAX_RECORD_SIZE);
-                            rapido_stream_buffer_init(&new_connection->send_buffer, 32 * TLS_MAX_RECORD_SIZE);
-                            rapido_queue_init(&new_connection->sent_records, sizeof(rapido_record_metadata_t), 512);
+
                             assert(setup_connection_crypto_context(session, new_connection) == 0);
                             // TODO: Find the addresses it uses
                             rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
@@ -1177,21 +1269,16 @@ do {
                 if (fds[i].revents & POLLIN) {
                     size_t recvbuf_max = 32 * TLS_MAX_ENCRYPTED_RECORD_SIZE;
                     size_t recvd = recv(fds[i].fd, rapido_stream_buffer_alloc(&connection->receive_buffer, &recvbuf_max), recvbuf_max, 0);
-                    current_time = get_time();
                     if (recvd == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
                         fds[i].revents &= ~(POLLIN);
                         rapido_stream_buffer_trim_end(&connection->receive_buffer, recvbuf_max);
                         continue;
-                    } else if (recvd == 0 || errno == EPIPE || errno == ECONNRESET) {
+                    } else if (recvd == 0 || (recvd == -1 && (errno == EPIPE || errno == ECONNRESET))) {
                         fds[i].revents &= ~(POLLIN);
-                        close(connection->socket);
-                        connection->socket = -1;
-                        rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
-                        notification->notification_type = rapido_connection_closed;
-                        notification->connection_id = connection->connection_id;
-                        // TODO: Properly close the connection
+                        rapido_connection_close(session, connection);
                         continue;
                     }
+                    current_time = get_time();
                     rapido_stream_buffer_trim_end(&connection->receive_buffer, recvbuf_max - recvd);
                     size_t consumed = 0;
                     recvd = UINT64_MAX;
@@ -1332,12 +1419,7 @@ do {
                                 fds[i].revents &= ~(POLLOUT);
                                 sent_len = 0;
                                 if (errno == EPIPE) {
-                                    close(connection->socket);
-                                    connection->socket = -1;
-                                    rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
-                                    notification->notification_type = rapido_connection_closed;
-                                    notification->connection_id = connection->connection_id;
-                                    // TODO: Properly close the connection
+                                    rapido_connection_close(session, connection);
                                 }
                             }
 
@@ -1359,13 +1441,8 @@ do {
                         if (sent_len == -1 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EPIPE)) {
                             fds[i].revents &= ~(POLLOUT);
                             sent_len = 0;
-                            if (errno == EPIPE) {
-                                close(connection->socket);
-                                connection->socket = -1;
-                                rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
-                                notification->notification_type = rapido_connection_closed;
-                                notification->connection_id = connection->connection_id;
-                                // TODO: Properly close the connection
+                            if (errno == EPIPE || errno == ECONNRESET) {
+                                rapido_connection_close(session, connection);
                             }
                         }
                         connection->sent_offset += sent_len;
@@ -1379,6 +1456,20 @@ do {
             }
         }
 } while (no_fds < 2 && session->pending_notifications.size < session->pending_notifications.capacity / 2);
+    return 0;
+}
+
+int rapido_retransmit_connection(rapido_t *session, rapido_connection_id_t connection_id, set_t connections) {
+    QLOG(session, "api", "rapido_retransmit_connection", "", "{\"source_connection_id\": \"%d\", \"connections\": \"%lu\"}", connection_id, connections);
+    rapido_connection_t *source_connection = rapido_array_get(&session->connections, connection_id);
+    assert(source_connection != NULL);
+    for (int i = 0; i < SET_LEN; i++) {
+        if (SET_HAS(connections, i)) {
+            rapido_connection_t *destination_connection = rapido_array_get(&session->connections, i);
+            assert(destination_connection != NULL);
+            SET_ADD(destination_connection->retransmit_connections, source_connection->connection_id);
+        }
+    }
     return 0;
 }
 
