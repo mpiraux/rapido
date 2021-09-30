@@ -1539,6 +1539,8 @@ int rapido_free(rapido_t *session) {
         free(connection->encryption_ctx);
         ptls_aead_free(connection->decryption_ctx->aead);
         free(connection->decryption_ctx);
+        ptls_aead_free(connection->own_decryption_ctx->aead);
+        free(connection->own_decryption_ctx);
         if (connection->tls != session->tls) {
             ptls_free(connection->tls);
         }

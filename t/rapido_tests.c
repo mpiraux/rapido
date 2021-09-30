@@ -294,7 +294,7 @@ void test_join() {
     rapido_connection_id_t s_cid2 = notification->connection_id;
 
     rapido_stream_id_t stream_id = rapido_open_stream(client);
-    uint8_t stream_data[100000];
+    uint8_t stream_data[1000000];
     ok(getrandom(stream_data, sizeof(stream_data), 0) == sizeof(stream_data));
     ok(rapido_add_to_stream(client, stream_id, stream_data, sizeof(stream_data)) == 0);
     ok(rapido_close_stream(client, stream_id) == 0);
@@ -308,12 +308,12 @@ void test_join() {
         client_send_recs[connection->connection_id] = connection->sent_records.size;
     });
     rapido_run_network(server);
-    ok(server->pending_notifications.size == 9);
+    ok(server->pending_notifications.size == 64);
     notification = rapido_queue_pop(&server->pending_notifications);
     ok(notification->notification_type == rapido_new_stream);
     ok(notification->stream_id == stream_id);
     bool stream_closed = false;
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 63; i++) {
         notification = rapido_queue_pop(&server->pending_notifications);
         ok(notification->notification_type == rapido_stream_has_data || (!stream_closed && notification->notification_type == rapido_stream_closed));
         ok(notification->stream_id == stream_id);

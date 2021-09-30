@@ -86,7 +86,7 @@ void run_server(rapido_t *session) {
 void run_client(rapido_t *session) {
     uint64_t start_time = get_time();
     uint64_t data_received = 0;
-    while (data_received < 1000000000) {
+    while (data_received < 2000000000) {
         rapido_run_network(session);
         while (session->pending_notifications.size > 0) {
             rapido_application_notification_t *notification = rapido_queue_pop(&session->pending_notifications);
@@ -97,10 +97,12 @@ void run_client(rapido_t *session) {
                 size_t read_len = UINT64_MAX;
                 rapido_read_stream(session, notification->stream_id, &read_len);
                 data_received += read_len;
+                rapido_queue_iter(&session->pending_notifications, notification, {});
             }
         }
     }
-    printf("Received %lu bytes over %f seconds\n", data_received, (get_time() - start_time) / 1000000.0);
+    uint64_t end_time = get_time();
+    printf("Received %lu bytes over %f seconds, (%.02f Mbit/s)\n", data_received, (end_time - start_time) / 1000000.0, (data_received * 8.0) / (end_time - start_time));
     rapido_free(session);
     free(session);
 }
