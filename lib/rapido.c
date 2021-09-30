@@ -1443,23 +1443,39 @@ do {
                 if (fds[i].revents & POLLOUT) {
                     rapido_connection_t *connection = rapido_array_get(&session->connections, connections_index[i]);
                     if (connection->send_buffer.size == connection->sent_offset) {
-                        size_t ciphertext_len = TLS_MAX_ENCRYPTED_RECORD_SIZE;
-                        uint8_t *ciphertext = rapido_stream_buffer_alloc(&connection->send_buffer, &ciphertext_len);
+                        size_t ciphertext_len = 16 * TLS_MAX_ENCRYPTED_RECORD_SIZE;
+                        size_t produced = 0;
+                        uint8_t *ciphertext = rapido_stream_buffer_alloc(&connection->send_buffer, &ciphertext_len, 32);
+                        assert(ciphertext);
                         assert(ciphertext_len > 32);
-                        size_t cleartext_len = TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(ciphertext_len);
-                        uint8_t cleartext[ciphertext_len];
-                        bool is_ack_eliciting = false;
-                        rapido_prepare_record(session, connection, cleartext, &cleartext_len, &is_ack_eliciting);
-                        ptls_buffer_t sendbuf = {0};
-                        ptls_buffer_init(&sendbuf, ciphertext, ciphertext_len);
-                        if (cleartext_len > 0) {
-                            ptls_set_traffic_protection(session->tls, connection->encryption_ctx, 0);
-                            assert(ptls_send(session->tls, &sendbuf, cleartext, cleartext_len) == 0);
-                            assert(sendbuf.is_allocated == 0);
-                            QLOG(session, "transport", "sent_record", "",
-                                 "{\"connection_id\": \"%zu\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}",
-                                 connections_index[i], ptls_get_traffic_protection(session->tls, 0)->seq - 1, sendbuf.off);
-                            ssize_t sent_len = send(connection->socket, sendbuf.base, sendbuf.off, 0);
+                        ptls_set_traffic_protection(session->tls, connection->encryption_ctx, 0);
+                        while (produced < ciphertext_len && connection->sent_records.size < connection->sent_records.capacity) {
+                            size_t cleartext_len = TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(min(ciphertext_len - produced, TLS_MAX_ENCRYPTED_RECORD_SIZE));
+                            uint8_t cleartext[cleartext_len];
+                            bool is_ack_eliciting = false;
+                            rapido_prepare_record(session, connection, cleartext, &cleartext_len, &is_ack_eliciting);
+                            ptls_buffer_t sendbuf = {0};
+                            ptls_buffer_init(&sendbuf, ciphertext + produced, ciphertext_len - produced);
+                            if (cleartext_len > 0) {
+                                assert(ptls_send(session->tls, &sendbuf, cleartext, cleartext_len) == 0);
+                                assert(sendbuf.is_allocated == 0);
+                                QLOG(session, "transport", "sent_record", "",
+                                     "{\"connection_id\": \"%zu\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}",
+                                     connections_index[i], ptls_get_traffic_protection(session->tls, 0)->seq - 1, sendbuf.off);
+                                produced += sendbuf.off;
+
+                                rapido_record_metadata_t *record = rapido_queue_push(&connection->sent_records);
+                                record->ciphertext_len = sendbuf.off;
+                                record->tls_record_sequence = ptls_get_traffic_protection(session->tls, 0)->seq - 1;
+                                record->ack_eliciting = is_ack_eliciting;
+                                record->send_time = get_time();
+                                connection->encryption_ctx->seq = ptls_get_traffic_protection(session->tls, 0)->seq;
+                            } else {
+                                break;
+                            }
+                        }
+                        if (produced > 0) {
+                            ssize_t sent_len = send(connection->socket, ciphertext, produced, 0);
                             if (sent_len == -1 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EPIPE)) {
                                 fds[i].revents &= ~(POLLOUT);
                                 sent_len = 0;
@@ -1467,17 +1483,10 @@ do {
                                     rapido_connection_close(session, connection);
                                 }
                             }
-
-                            rapido_record_metadata_t *record = rapido_queue_push(&connection->sent_records);
-                            record->ciphertext_len = sent_len;
-                            record->tls_record_sequence = ptls_get_traffic_protection(session->tls, 0)->seq - 1;
-                            record->ack_eliciting = is_ack_eliciting;
-                            record->send_time = get_time();
                             connection->sent_offset += sent_len;
                             connection->stats.bytes_sent += sent_len;
-                            connection->encryption_ctx->seq = ptls_get_traffic_protection(session->tls, 0)->seq;
                         }
-                        rapido_stream_buffer_trim_end(&connection->send_buffer, ciphertext_len - sendbuf.off);
+                        rapido_stream_buffer_trim_end(&connection->send_buffer, ciphertext_len - produced);
                     } else {
                         size_t fragmented_record_len = TLS_MAX_ENCRYPTED_RECORD_SIZE;
                         void *fragmented_record = rapido_stream_buffer_read(&connection->send_buffer, connection->sent_offset, &fragmented_record_len);
