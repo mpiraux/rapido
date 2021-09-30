@@ -158,6 +158,7 @@ typedef struct {
     rapido_queue_t sent_records;
     size_t sent_offset;
     uint64_t last_received_record_sequence;
+    uint8_t fragment_buffer[16384 + 256];
 
     bool require_ack;
     uint64_t last_receive_time;
