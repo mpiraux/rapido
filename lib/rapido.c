@@ -780,8 +780,9 @@ int rapido_close_stream(rapido_t *session, rapido_stream_id_t stream_id) {
 int rapido_prepare_stream_frame(rapido_t *session, rapido_stream_t *stream, uint8_t *buf, size_t *len) {
     // TODO: Handle ACK/RTX buffers
     size_t stream_header_len = sizeof(rapido_frame_type_t) + sizeof(rapido_stream_id_t) + (2 * sizeof(uint64_t));
-    assert(*len > 1 + stream_header_len);
     size_t consumed = 0;
+    if (*len < 1 + stream_header_len)
+        goto Exit;
     size_t payload_len = min(*len, TLS_MAX_RECORD_SIZE) - 1 - stream_header_len;
     // TODO: Handle when the buffer returns a smaller pointer due to buffer cycling
     void *stream_data = rapido_stream_buffer_get(&stream->send_buffer, &payload_len);
@@ -810,6 +811,7 @@ int rapido_prepare_stream_frame(rapido_t *session, rapido_stream_t *stream, uint
         stream->fin_sent = true;
     }
     stream->write_offset += payload_len;
+Exit:
     *len = consumed;
     return 0;
 }
@@ -868,8 +870,9 @@ int rapido_process_stream_frame(rapido_t *session, rapido_stream_frame_t *frame)
 
 int rapido_prepare_new_session_id_frame(rapido_t *session, uint8_t *tls_session_id, rapido_connection_id_t sequence, uint8_t *buf, size_t *len) {
     size_t new_session_id_len = sizeof(rapido_frame_type_t) + sizeof(rapido_connection_id_t) + 32;
-    assert(*len > 1 + new_session_id_len);
     size_t consumed = 0;
+    if (*len < 1 + new_session_id_len)
+        goto Exit;
 
     *(uint8_t *)(buf + consumed) = new_session_id_frame_type;
     consumed += sizeof(rapido_frame_type_t);
@@ -880,6 +883,7 @@ int rapido_prepare_new_session_id_frame(rapido_t *session, uint8_t *tls_session_
 
     QLOG(session, "frames", "prepare_new_session_id_frame", "", "{\"sequence\": \"%d\"}", sequence);
 
+Exit:
     *len = consumed;
     return 0;
 }
@@ -911,9 +915,11 @@ int rapido_process_new_session_id_frame(rapido_t *session, rapido_new_session_id
 }
 
 int rapido_prepare_ack_frame(rapido_t *session, uint8_t *buf, size_t *len) {
-    assert(*len >= 1 + sizeof(rapido_connection_id_t) + sizeof(uint64_t));
     size_t consumed = 0;
     rapido_array_iter(&session->connections, rapido_connection_t *connection, {
+        if (*len - consumed < 1 + sizeof(rapido_connection_id_t) + sizeof(uint64_t)) {
+            break;
+        }
         if (connection->require_ack) {
             buf[consumed] = ack_frame_type;
             consumed++;
@@ -925,9 +931,6 @@ int rapido_prepare_ack_frame(rapido_t *session, uint8_t *buf, size_t *len) {
             connection->last_receive_time = 0;
             connection->non_ack_eliciting_count = 0;
             QLOG(session, "frames", "rapido_prepare_ack_frame", "", "{\"connection_id\": \"%d\", \"last_record_acknowledged\": \"%lu\"}", connection->connection_id, connection->last_received_record_sequence);
-            if (*len - consumed < 1 + sizeof(rapido_connection_id_t) + sizeof(uint64_t)) {
-                break;
-            }
         }
     });
     *len = consumed;
@@ -1103,7 +1106,7 @@ int rapido_prepare_record(rapido_t *session, rapido_connection_t *connection, ui
                 size_t frame_len = *len - consumed;
                 assert(rapido_prepare_stream_frame(session, stream, cleartext + consumed, &frame_len) == 0);
                 consumed += frame_len;
-                *is_ack_eliciting = true;
+                *is_ack_eliciting = frame_len > 0;
             } else {
                 streams_to_write--;
             }
