@@ -8,11 +8,6 @@
 #include <sys/socket.h>
 #include "picotls.h"
 
-/*
- * TODO:
- *  - Need a byte range abstraction for stream buf ack tracking
- */
-
 typedef uint32_t rapido_connection_id_t;
 typedef uint32_t rapido_stream_id_t;
 
