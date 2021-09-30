@@ -30,6 +30,9 @@ typedef uint64_t set_t;
 
 #define TLS_SESSION_ID_LEN 32
 
+/**
+ * A growing array allocating `capacity * item_size` bytes.
+ */
 typedef struct {
     size_t capacity;
     size_t size;
@@ -48,6 +51,9 @@ typedef struct {
         }                                                                                                                          \
     } while (0)
 
+/**
+ * A growing and cycling queue allocating `capacity * item_size` bytes.
+ */
 typedef struct {
     size_t capacity;
     size_t size;
@@ -57,6 +63,9 @@ typedef struct {
     uint8_t *data;
 } rapido_queue_t;
 
+/**
+ * A growing and cycling byte buffer. Due to cycling, the buffer can allocate or return a smaller memory zone than wanted.
+ */
 typedef struct {
     size_t capacity;
     size_t size;
@@ -75,6 +84,11 @@ typedef struct {
     size_t size;
 } rapido_range_list_t;
 
+/**
+ * A growing and cycling buffer, also tracking the ranges of bytes present in the buffer following a global read_offset.
+ * The offset advances as data is read out of the buffer.
+ * Due to cycling, the buffer can allocate or return a smaller memory zone than wanted.
+ */
 typedef struct {
     struct {
         void *data;
