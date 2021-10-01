@@ -652,7 +652,7 @@ rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local
     connection->connection_id = connection_id;
     connection->local_address_id = local_address_id;
     connection->remote_address_id = remote_address_id;
-    connection->socket = socket(remote_address->sa_family, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    connection->socket = socket(remote_address->sa_family, SOCK_STREAM, 0);
     assert_perror(connection->socket == -1);
     int yes = 1;
     assert_perror(setsockopt(connection->socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)));
@@ -695,6 +695,7 @@ rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local
     assert(ret == PTLS_ERROR_IN_PROGRESS);
     assert(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) == handshake_buffer.off);
     ptls_buffer_dispose(&handshake_buffer);
+    assert_perror(fcntl(connection->socket, F_SETFL, fcntl(connection->socket, F_GETFL, 0) | O_NONBLOCK));  // TODO: Keep it has non-blocking and add the handshake data to the send buffer
 
     QLOG(session, "api", "rapido_create_connection", "", "{\"connection_id\": \"%d\", \"local_address_id\": \"%d\", \"remote_address_id\": \"%d\"}", connection_id, local_address_id, remote_address_id);
     return connection_id;
@@ -1209,80 +1210,78 @@ do {
                 if (consumed < recvd) {
                     assert(!"More data after handshake");
                 }
-                if (ret == PTLS_ERROR_IN_PROGRESS) {
-                    assert(!"Fragmented handshake"); // TODO: Handle fragmented handshake
-                } else {
-                    if (ret == 0) {
-                        /* ClientHello */
-                        if (!ptls_handshake_is_complete(session->tls)) {
-                            assert(session->tls_properties.server.tls_session_id.len > 0);
-                            assert(session->tls_properties.collected_extensions == NULL);
-                            bool has_rapido_hello = false;
-                            for (ptls_raw_extension_t *extension = session->tls_properties.additional_extensions;
-                                 extension->type != UINT16_MAX && !has_rapido_hello; extension++) {
-                                if (extension->type == TLS_RAPIDO_HELLO_EXT) {
-                                    has_rapido_hello = true;
-                                }
+                assert(ret == 0 || ret == PTLS_ERROR_IN_PROGRESS);
+                if (ret == 0) {
+                    /* ClientHello */
+                    if (!ptls_handshake_is_complete(session->tls)) {
+                        assert(session->tls_properties.server.tls_session_id.len > 0);
+                        assert(session->tls_properties.collected_extensions == NULL);
+                        bool has_rapido_hello = false;
+                        for (ptls_raw_extension_t *extension = session->tls_properties.additional_extensions;
+                             extension->type != UINT16_MAX && !has_rapido_hello; extension++) {
+                            if (extension->type == TLS_RAPIDO_HELLO_EXT) {
+                                has_rapido_hello = true;
                             }
-                            assert(has_rapido_hello);
-                            session->tls_properties.collected_extensions = collected_rapido_extensions;
-                            free(session->tls_properties.additional_extensions);
-                            session->tls_properties.additional_extensions = malloc(sizeof(ptls_raw_extension_t) * 2);
-                            session->tls_properties.additional_extensions[0].type = TLS_RAPIDO_HELLO_EXT;
-                            session->tls_properties.additional_extensions[0].data = ptls_iovec_init(NULL, 0);
-                            session->tls_properties.additional_extensions[1].type = UINT16_MAX;
                         }
-                        if (!ptls_handshake_is_complete(connection->tls)) {
-                            memcpy(connection->tls_session_id, session->tls_properties.server.tls_session_id.base,
-                                   session->tls_properties.server.tls_session_id.len);
-                        }
-                        assert(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) ==
-                               handshake_buffer.off);
-                        ptls_buffer_dispose(&handshake_buffer);
-                        /* ClientFinished */
-                        if (ptls_handshake_is_complete(connection->tls)) {
-                            int tls_session_id_sequence = -1;
-                            rapido_array_iter(&session->tls_session_ids, uint8_t * tls_session_id, {
-                                if (memcmp(tls_session_id, connection->tls_session_id, TLS_SESSION_ID_LEN) == 0) {
-                                    tls_session_id_sequence = i;
-                                    break;
-                                }
-                            });
-                            if (tls_session_id_sequence == -1) {
-                                assert(session->tls_session_ids.size == 0);
-                                memcpy(rapido_array_add(&session->tls_session_ids, 0), connection->tls_session_id,
-                                       TLS_SESSION_ID_LEN);
-                                session->server.tls_session_ids_sent = 1;
-                                tls_session_id_sequence = 0;
+                        assert(has_rapido_hello);
+                        session->tls_properties.collected_extensions = collected_rapido_extensions;
+                        free(session->tls_properties.additional_extensions);
+                        session->tls_properties.additional_extensions = malloc(sizeof(ptls_raw_extension_t) * 2);
+                        session->tls_properties.additional_extensions[0].type = TLS_RAPIDO_HELLO_EXT;
+                        session->tls_properties.additional_extensions[0].data = ptls_iovec_init(NULL, 0);
+                        session->tls_properties.additional_extensions[1].type = UINT16_MAX;
+                    }
+                    if (!ptls_handshake_is_complete(connection->tls)) {
+                        memcpy(connection->tls_session_id, session->tls_properties.server.tls_session_id.base,
+                               session->tls_properties.server.tls_session_id.len);
+                    }
+                    assert(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) ==
+                           handshake_buffer.off);
+                    ptls_buffer_dispose(&handshake_buffer);
+                    /* ClientFinished */
+                    if (ptls_handshake_is_complete(connection->tls)) {
+                        int tls_session_id_sequence = -1;
+                        rapido_array_iter(&session->tls_session_ids, uint8_t * tls_session_id, {
+                            if (memcmp(tls_session_id, connection->tls_session_id, TLS_SESSION_ID_LEN) == 0) {
+                                tls_session_id_sequence = i;
+                                break;
+                            }
+                        });
+                        if (tls_session_id_sequence == -1) {
+                            assert(session->tls_session_ids.size == 0);
+                            memcpy(rapido_array_add(&session->tls_session_ids, 0), connection->tls_session_id,
+                                   TLS_SESSION_ID_LEN);
+                            session->server.tls_session_ids_sent = 1;
+                            tls_session_id_sequence = 0;
 
-                                for (int sid = 1; sid < DEFAULT_TCPLS_SESSION_ID_AMOUNT; sid++) {
-                                    session->tls_ctx->random_bytes(rapido_array_add(&session->tls_session_ids, sid),
-                                                                   TLS_SESSION_ID_LEN);
-                                }
+                            for (int sid = 1; sid < DEFAULT_TCPLS_SESSION_ID_AMOUNT; sid++) {
+                                session->tls_ctx->random_bytes(rapido_array_add(&session->tls_session_ids, sid),
+                                                               TLS_SESSION_ID_LEN);
                             }
-                            rapido_connection_t *new_connection = rapido_array_add(&session->connections, tls_session_id_sequence);
-                            rapido_connection_init(session, new_connection);
-                            new_connection->socket = connection->socket;
-                            new_connection->connection_id = tls_session_id_sequence;
-                            new_connection->tls = session->tls;
-
-                            assert(setup_connection_crypto_context(session, new_connection) == 0);
-                            // TODO: Find the addresses it uses
-                            rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
-                            notification->notification_type = rapido_new_connection;
-                            notification->connection_id = new_connection->connection_id;
-                            if (connection->tls != session->tls) {
-                                ptls_free(connection->tls);
-                            }
-                            rapido_array_delete(&session->server.pending_connections, connections_index[fd_offset]);
                         }
-                    } else {
-                        WARNING("Pending connection %zu returned pTLS error code %d during handshake\n",
-                                connections_index[fd_offset], ret);
-                        close(connection->socket);
+                        rapido_connection_t *new_connection = rapido_array_add(&session->connections, tls_session_id_sequence);
+                        rapido_connection_init(session, new_connection);
+                        new_connection->socket = connection->socket;
+                        new_connection->connection_id = tls_session_id_sequence;
+                        new_connection->tls = session->tls;
+
+                        assert(setup_connection_crypto_context(session, new_connection) == 0);
+                        // TODO: Find the addresses it uses
+                        rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
+                        notification->notification_type = rapido_new_connection;
+                        notification->connection_id = new_connection->connection_id;
+                        if (connection->tls != session->tls) {
+                            ptls_free(connection->tls);
+                        }
                         rapido_array_delete(&session->server.pending_connections, connections_index[fd_offset]);
                     }
+                } else if (ret != PTLS_ERROR_IN_PROGRESS) {
+                    WARNING("Pending connection %zu returned pTLS error code %d during handshake\n",
+                            connections_index[fd_offset], ret);
+                    close(connection->socket);
+                    rapido_array_delete(&session->server.pending_connections, connections_index[fd_offset]);
                 }
+
                 polled_fds--;
             }
             fd_offset++;
@@ -1318,27 +1317,28 @@ do {
                         ptls_buffer_init(&handshake_buffer, "", 0);
                         consumed = recvd;
                         int ret = ptls_handshake(connection->tls, &handshake_buffer, recvbuf, &consumed, &session->tls_properties);
-                        assert(ret == 0);
-                        assert(session->tls_properties.collected_extensions == NULL);
-                        bool has_rapido_hello = false;
-                        for (ptls_raw_extension_t *extension = session->tls_properties.additional_extensions;
-                             extension->type != UINT16_MAX && !has_rapido_hello; extension++) {
-                            if (extension->type == TLS_RAPIDO_HELLO_EXT) {
-                                has_rapido_hello = true;
+                        assert(ret == 0 || ret == PTLS_ERROR_IN_PROGRESS);
+                        if (ret == 0) {
+                            assert(session->tls_properties.collected_extensions == NULL);
+                            bool has_rapido_hello = false;
+                            for (ptls_raw_extension_t *extension = session->tls_properties.additional_extensions;
+                                 extension->type != UINT16_MAX && !has_rapido_hello; extension++) {
+                                if (extension->type == TLS_RAPIDO_HELLO_EXT) {
+                                    has_rapido_hello = true;
+                                }
                             }
+                            assert(has_rapido_hello || ptls_handshake_is_complete(session->tls));
+                            assert(send(fds[i].fd, handshake_buffer.base, handshake_buffer.off, 0) == handshake_buffer.off);
+                            ptls_buffer_dispose(&handshake_buffer);
+                            session->tls_properties.collected_extensions = collected_rapido_extensions;
+                            free(session->tls_properties.additional_extensions);
+                            session->tls_properties.additional_extensions = NULL;
+                            if (connection->tls != session->tls) {
+                                ptls_free(connection->tls);
+                                connection->tls = session->tls;
+                            }
+                            assert(setup_connection_crypto_context(session, connection) == 0);
                         }
-                        assert(has_rapido_hello || ptls_handshake_is_complete(session->tls));
-                        assert(send(fds[i].fd, handshake_buffer.base, handshake_buffer.off, 0) ==
-                               handshake_buffer.off);
-                        ptls_buffer_dispose(&handshake_buffer);
-                        session->tls_properties.collected_extensions = collected_rapido_extensions;
-                        free(session->tls_properties.additional_extensions);
-                        session->tls_properties.additional_extensions = NULL;
-                        if (connection->tls != session->tls) {
-                            ptls_free(connection->tls);
-                            connection->tls = session->tls;
-                        }
-                        assert(setup_connection_crypto_context(session, connection) == 0);
                     }
                     if (ptls_handshake_is_complete(connection->tls) && consumed < recvd) {
                         ptls_set_traffic_protection(session->tls, connection->decryption_ctx, 1);
