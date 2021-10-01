@@ -19,6 +19,7 @@ static void usage(const char *cmd)
            "  -c certificate-file  certificate chain used for server authentication\n"
            "  -k key-file          specifies the credentials for signing the certificate\n"
            "  -l log-file          file to log events (incl. traffic secrets)\n"
+           "  -n hostname          hostname used for certificate verification\n"
            "  -q qlog-file         file to output qlog events\n"
            "  -y cipher-suite      cipher-suite to be used, e.g., aes128gcmsha256 (default:\n"
            "                       all)\n"
@@ -128,8 +129,9 @@ int main(int argc, char **argv) {
     struct sockaddr_storage sa;
     socklen_t salen;
     const char *cert_location = NULL;
+    const char *hostname = NULL;
 
-    while ((ch = getopt(argc, argv, "c:k:l:q:y:h")) != -1) {
+    while ((ch = getopt(argc, argv, "c:k:l:n:q:y:h")) != -1) {
         switch (ch) {
         case 'c':
             if (cert_location != NULL) {
@@ -145,6 +147,9 @@ int main(int argc, char **argv) {
             break;
         case 'l':
             setup_log_event(&ctx, optarg);
+            break;
+        case 'n':
+            hostname = optarg;
             break;
         case 'q':
             break;
@@ -209,7 +214,7 @@ int main(int argc, char **argv) {
 
     signal(SIGPIPE, SIG_IGN);
 
-    rapido_t *session = rapido_new(&ctx, is_server, host, NULL);
+    rapido_t *session = rapido_new(&ctx, is_server, hostname ? hostname : host, NULL);
     if (is_server) {
         rapido_add_address(session, (struct sockaddr *)&sa, salen);
         run_server(session);
