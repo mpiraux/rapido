@@ -21,6 +21,7 @@ static void usage(const char *cmd)
            "  -l log-file          file to log events (incl. traffic secrets)\n"
            "  -n hostname          hostname used for certificate verification\n"
            "  -q qlog-file         file to output qlog events\n"
+           "  -s download-size     amount of data to receive in GB\n"
            "  -y cipher-suite      cipher-suite to be used, e.g., aes128gcmsha256 (default:\n"
            "                       all)\n"
            "  -h                   prints this help\n"
@@ -84,10 +85,10 @@ void run_server(rapido_t *session) {
     free(session);
 }
 
-void run_client(rapido_t *session) {
+void run_client(rapido_t *session, size_t data_to_receive) {
     uint64_t start_time = get_time();
     uint64_t data_received = 0;
-    while (data_received < 2000000000) {
+    while (data_received < data_to_receive) {
         rapido_run_network(session);
         while (session->pending_notifications.size > 0) {
             rapido_application_notification_t *notification = rapido_queue_pop(&session->pending_notifications);
@@ -130,8 +131,9 @@ int main(int argc, char **argv) {
     socklen_t salen;
     const char *cert_location = NULL;
     const char *hostname = NULL;
+    size_t data_to_receive = 2000000000;
 
-    while ((ch = getopt(argc, argv, "c:k:l:n:q:y:h")) != -1) {
+    while ((ch = getopt(argc, argv, "c:k:l:n:q:s:y:h")) != -1) {
         switch (ch) {
         case 'c':
             if (cert_location != NULL) {
@@ -152,6 +154,15 @@ int main(int argc, char **argv) {
             hostname = optarg;
             break;
         case 'q':
+            break;
+        case 's': {
+            char *endarg = NULL;
+            data_to_receive = strtol(optarg, &endarg, 10) * 1000000000;
+            if (optarg == endarg) {
+                fprintf(stderr, "-s must be an integer\n");
+                return 1;
+            }
+        }
             break;
         case 'y': {
             size_t i;
@@ -221,6 +232,6 @@ int main(int argc, char **argv) {
     } else {
         rapido_address_id_t ra_id = rapido_add_remote_address(session, (struct sockaddr *)&sa, salen);
         rapido_create_connection(session, 0, ra_id);
-        run_client(session);
+        run_client(session, data_to_receive);
     }
 }
