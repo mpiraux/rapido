@@ -1,0 +1,15 @@
+%variables
+size=[1-10]
+
+%config
+timeout=300
+var_names={RESULT-goodput:Goodput,size:Download size}
+var_unit={RESULT-goodput:Mbps,size:GB}
+var_divider={RESULT-goodput:1000000}
+
+%script@server
+/root/rapido/rapido -c /root/rapido/t/assets/rsa/cert.pem -k /root/rapido/t/assets/rsa/key.pem -n localhost ${server:0:ip} 4443
+
+%script@client delay=1
+result=$(/root/rapido/rapido -s $size -n localhost ${server:0:ip} 4443 | grep -oP "\d*.\d* Mbit/s" | sed 's; Mbit/s;Mbits;g')
+echo "RESULT-goodput $result"
