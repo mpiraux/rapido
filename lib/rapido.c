@@ -289,8 +289,8 @@ void *rapido_stream_buffer_alloc(rapido_stream_buffer_t *buffer, size_t *len, si
         buffer->data = reallocarray(buffer->data, 1, buffer->capacity * 2);
         assert(buffer->data);
         buffer->capacity *= 2;
-        if (buffer->back_index < buffer->front_index && buffer->back_index) {
-            memcpy(buffer->data + buffer->front_index + buffer->size - buffer->back_index, buffer->data + buffer->back_index, buffer->back_index);
+        if (buffer->back_index < buffer->front_index) {
+            memcpy(buffer->data + buffer->front_index + buffer->size - buffer->back_index, buffer->data, buffer->back_index);
             buffer->back_index = buffer->front_index + buffer->size;
         }
         wrap_len = buffer->capacity - buffer->back_index;
@@ -1349,13 +1349,7 @@ do {
                             if (!is_record_complete) {
                                 size_t additional_len = record_missing_len;
                                 uint8_t *additional_data = rapido_stream_buffer_peek(&connection->receive_buffer, recvd, &additional_len);
-                                if (additional_len == record_missing_len) {
-                                    memcpy(connection->fragment_buffer, recvbuf + recvd_offset, recvd - recvd_offset);
-                                    memcpy(connection->fragment_buffer + (recvd - recvd_offset), additional_data, additional_len);
-                                    recvd = (recvd - recvd_offset) + additional_len;
-                                    recvd_offset = 0;
-                                    recvbuf = connection->fragment_buffer;
-                                } else {
+                                if (additional_len != record_missing_len) {
                                     consumed = recvd_offset;
                                     break;
                                 }
@@ -1411,7 +1405,7 @@ do {
                             connection->last_received_record_sequence = ptls_get_traffic_protection(session->tls, 1)->seq - 1;
                         }
                         connection->decryption_ctx->seq = ptls_get_traffic_protection(session->tls, 1)->seq;
-                        connection->stats.bytes_received += recvd;
+                        connection->stats.bytes_received += consumed;
                     }
                     size_t len = consumed;
                     rapido_stream_buffer_get(&connection->receive_buffer, &len);
@@ -1440,9 +1434,9 @@ do {
                     if (connection->send_buffer.size == connection->sent_offset) {
                         size_t ciphertext_len = 16 * TLS_MAX_ENCRYPTED_RECORD_SIZE;
                         size_t produced = 0;
-                        uint8_t *ciphertext = rapido_stream_buffer_alloc(&connection->send_buffer, &ciphertext_len, 32);
+                        uint8_t *ciphertext = rapido_stream_buffer_alloc(&connection->send_buffer, &ciphertext_len, TLS_MAX_ENCRYPTED_RECORD_SIZE);
                         assert(ciphertext);
-                        assert(ciphertext_len > 32);
+                        assert(ciphertext_len >= TLS_MAX_ENCRYPTED_RECORD_SIZE);
                         ptls_set_traffic_protection(session->tls, connection->encryption_ctx, 0);
                         while (produced < ciphertext_len && connection->sent_records.size < connection->sent_records.capacity) {
                             size_t cleartext_len = TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(min(ciphertext_len - produced, TLS_MAX_ENCRYPTED_RECORD_SIZE));
@@ -1469,24 +1463,13 @@ do {
                                 break;
                             }
                         }
-                        if (produced > 0) {
-                            ssize_t sent_len = send(connection->socket, ciphertext, produced, 0);
-                            if (sent_len == -1 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EPIPE)) {
-                                fds[i].revents &= ~(POLLOUT);
-                                sent_len = 0;
-                                if (errno == EPIPE) {
-                                    rapido_connection_close(session, connection);
-                                }
-                            }
-                            connection->sent_offset += sent_len;
-                            connection->stats.bytes_sent += sent_len;
-                        }
                         rapido_stream_buffer_trim_end(&connection->send_buffer, ciphertext_len - produced);
-                    } else {
-                        size_t fragmented_record_len = TLS_MAX_ENCRYPTED_RECORD_SIZE;
-                        void *fragmented_record = rapido_stream_buffer_peek(&connection->send_buffer, connection->sent_offset, &fragmented_record_len);
-                        assert(fragmented_record_len > 0);
-                        ssize_t sent_len = send(connection->socket, fragmented_record, fragmented_record_len, 0);
+                    }
+
+                    size_t send_len = 16 * TLS_MAX_ENCRYPTED_RECORD_SIZE;
+                    void *send_data = rapido_stream_buffer_peek(&connection->send_buffer, connection->sent_offset, &send_len);
+                    if (send_len > 0) {
+                        ssize_t sent_len = send(connection->socket, send_data, send_len, 0);
                         if (sent_len == -1 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EPIPE)) {
                             fds[i].revents &= ~(POLLOUT);
                             sent_len = 0;
@@ -1494,9 +1477,11 @@ do {
                                 rapido_connection_close(session, connection);
                             }
                         }
+                        connection->stats.bytes_sent += sent_len;
                         connection->sent_offset += sent_len;
                     }
-                    if (rapido_connection_wants_to_send(session, connection, current_time) == 0) {
+
+                    if (fds[i].revents & POLLOUT && rapido_connection_wants_to_send(session, connection, current_time) == 0) {
                         fds[i].revents &= ~(POLLOUT);
                     } else {
                         wants_to_write = 1;
