@@ -21,7 +21,7 @@ typedef uint64_t set_t;
 #define SET_HAS(bs, e) (bs & (1ull << ((uint64_t) e)))
 #define SET_ADD(bs, e) bs = (bs | (1ull << ((uint64_t) e)))
 #define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t) e))))
-#define SET_SIZE(bs) __builtin_popcount(bs)
+#define SET_SIZE(bs) __builtin_popcountll(bs)
 
 #define TLS_SESSION_ID_LEN 32
 

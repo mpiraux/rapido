@@ -978,8 +978,12 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
         return 0;
     }
     int wants_to_send = 0;
+    char *reason = NULL;
 
     wants_to_send |= connection->send_buffer.size > connection->sent_offset;
+    LOG if (wants_to_send) {
+        reason = "Connection send buffer has data";
+    };
 
     rapido_array_iter(&session->connections, rapido_connection_t *connection, {
         if (connection->non_ack_eliciting_count >= DEFAULT_DELAYED_ACK_COUNT) {
@@ -990,6 +994,9 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
             connection->last_receive_time = 0;
         }
         wants_to_send |= connection->require_ack;
+        LOG if (connection->require_ack) {
+            reason = "Connection requires ACK";
+        }
     });
 
     size_t streams_to_write = SET_SIZE(connection->attached_streams);
@@ -997,6 +1004,9 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
         if (SET_HAS(connection->attached_streams, i)) {
             rapido_stream_t *stream = rapido_array_get(&session->streams, i);
             wants_to_send |= (stream->producer && !stream->fin_set) || stream->send_buffer.size || (stream->fin_set && !stream->fin_sent);
+            LOG if (wants_to_send) {
+                reason = "Stream can send";
+            }
         }
     }
 
@@ -1022,6 +1032,9 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
                         rapido_queue_pop(&source_connection->sent_records);
                     }
                     wants_to_send |= record->ack_eliciting;
+                    LOG if (wants_to_send) {
+                        reason = "Received record needs ACK";
+                    }
                 }
                 if (source_connection->sent_records.size == 0) {
                     SET_REMOVE(connection->retransmit_connections, j);
@@ -1029,6 +1042,10 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
             }
         }
     }
+
+    LOG {
+        QLOG(session, "connection", "rapido_connection_wants_to_send", "", "{\"reason\": \"%s\", \"wants_to_send\": \"%d\"}", reason, wants_to_send);
+    };
 
     return wants_to_send;
 }
