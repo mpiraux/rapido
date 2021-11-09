@@ -61,7 +61,7 @@ static uint64_t get_time() {
     return tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
 }
 
-uint8_t *stream_queue_random_data(rapido_t *session, rapido_stream_id_t stream_id, void *producer_ctx, uint64_t offset, size_t *len) {
+uint8_t *stream_produce_random_data(rapido_t *session, rapido_stream_id_t stream_id, void *producer_ctx, uint64_t offset, size_t *len) {
     *len = min(*len, sizeof(random_data));
     return random_data;
 }
@@ -76,7 +76,7 @@ void run_server(rapido_t *session) {
                 printf("Accepted connection\n");
                 rapido_stream_id_t stream = rapido_open_stream(session);
                 rapido_attach_stream(session, stream, notification->connection_id);
-                rapido_set_stream_producer(session, stream, stream_queue_random_data, NULL);
+                rapido_set_stream_producer(session, stream, stream_produce_random_data, NULL);
             } else if (notification->notification_type == rapido_connection_closed) {
                 printf("Connection closed\n");
                 connection_closed = true;

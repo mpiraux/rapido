@@ -784,6 +784,9 @@ int rapido_prepare_stream_frame(rapido_t *session, rapido_stream_t *stream, uint
     size_t payload_len = min(*len, TLS_MAX_RECORD_SIZE) - 1 - stream_header_len;
     void *stream_data;
     if (stream->producer) {
+        if (stream->fin_set) {
+            payload_len = min(payload_len, stream->write_fin - stream->write_offset);
+        }
         stream_data = stream->producer(session, stream->stream_id, stream->producer_ctx, stream->write_offset, &payload_len);
     } else {
         // TODO: Handle when the buffer returns a smaller pointer due to buffer cycling
