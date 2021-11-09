@@ -37,6 +37,8 @@
 #define TLS_RECORD_HEADER_LEN (1 + 2 + 2)
 #define TLS_RAPIDO_HELLO_EXT 100
 
+static uint8_t random_data[16384];
+
 #define DEFAULT_TCPLS_SESSION_ID_AMOUNT 4
 #define DEFAULT_DELAYED_ACK_COUNT 16
 #define DEFAULT_DELAYED_ACK_TIME 25000
@@ -780,13 +782,16 @@ int rapido_prepare_stream_frame(rapido_t *session, rapido_stream_t *stream, uint
     if (*len < 1 + stream_header_len)
         goto Exit;
     size_t payload_len = min(*len, TLS_MAX_RECORD_SIZE) - 1 - stream_header_len;
-    // TODO: Handle when the buffer returns a smaller pointer due to buffer cycling
-    void *stream_data = rapido_stream_buffer_get(&stream->send_buffer, &payload_len);
-    bool fin = stream->fin_set && stream->write_offset + payload_len == stream->write_fin;
-    if (payload_len == 0 && !fin) {
-        *len = 0;
-        return 0;
+    void *stream_data;
+    if (stream->producer) {
+        stream_data = stream->producer(session, stream->stream_id, stream->producer_ctx, stream->write_offset, &payload_len);
+    } else {
+        // TODO: Handle when the buffer returns a smaller pointer due to buffer cycling
+        stream_data = rapido_stream_buffer_get(&stream->send_buffer, &payload_len);
     }
+    bool fin = stream->fin_set && stream->write_offset + payload_len == stream->write_fin;
+    if (payload_len == 0 && !fin)
+        goto Exit;
 
     *(uint8_t *)(buf + consumed) = stream_frame_type;
     consumed += sizeof(rapido_frame_type_t);
@@ -991,10 +996,7 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
     for (int i = 0; !wants_to_send && streams_to_write && i < SET_LEN; i++) {
         if (SET_HAS(connection->attached_streams, i)) {
             rapido_stream_t *stream = rapido_array_get(&session->streams, i);
-            if (!stream->fin_set && stream->send_buffer.size < TLS_MAX_RECORD_SIZE && stream->producer) {
-                stream->producer(session, stream->stream_id, stream->producer_ctx);
-            }
-            wants_to_send |= stream->send_buffer.size || (stream->fin_set && !stream->fin_sent);
+            wants_to_send |= (stream->producer && !stream->fin_set) || stream->send_buffer.size || (stream->fin_set && !stream->fin_sent);
         }
     }
 
@@ -1098,7 +1100,7 @@ int rapido_prepare_record(rapido_t *session, rapido_connection_t *connection, ui
     for (int i = 0; consumed < *len && i < SET_LEN && streams_to_write; i++) {
         if (SET_HAS(connection->attached_streams, i)) {
             rapido_stream_t *stream = rapido_array_get(&session->streams, i);
-            if (stream->send_buffer.size || (stream->fin_set && !stream->fin_sent)) {
+            if ((stream->producer && !stream->fin_set) || stream->send_buffer.size || (stream->fin_set && !stream->fin_sent)) {
                 size_t frame_len = *len - consumed;
                 assert(rapido_prepare_stream_frame(session, stream, cleartext + consumed, &frame_len) == 0);
                 consumed += frame_len;

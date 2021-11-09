@@ -11,6 +11,8 @@
 #include "picotls/openssl.h"
 #include "util.h"
 
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
 static void usage(const char *cmd)
 {
     printf("Usage: %s [options] host port\n"
@@ -59,8 +61,9 @@ static uint64_t get_time() {
     return tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
 }
 
-void stream_queue_random_data(rapido_t *session, rapido_stream_id_t stream_id, void *producer_ctx) {
-    rapido_add_to_stream(session, stream_id, random_data, sizeof(random_data));
+uint8_t *stream_queue_random_data(rapido_t *session, rapido_stream_id_t stream_id, void *producer_ctx, uint64_t offset, size_t *len) {
+    *len = min(*len, sizeof(random_data));
+    return random_data;
 }
 
 void run_server(rapido_t *session) {

@@ -190,7 +190,7 @@ typedef struct {
     uint8_t tls_session_id[TLS_SESSION_ID_LEN];
 } rapido_pending_connection_t;
 
-typedef void (* rapido_stream_producer_t)(rapido_t *, rapido_stream_id_t, void *);
+typedef uint8_t *(* rapido_stream_producer_t)(rapido_t *, rapido_stream_id_t, void *, uint64_t, size_t *);
 
 typedef struct {
     rapido_stream_id_t stream_id;
