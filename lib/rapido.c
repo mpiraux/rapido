@@ -304,7 +304,7 @@ void *rapido_stream_buffer_alloc(rapido_stream_buffer_t *buffer, size_t *len, si
     return ptr;
 }
 
-void *rapido_stream_buffer_trim_end(rapido_stream_buffer_t *buffer, size_t len) {
+void rapido_stream_buffer_trim_end(rapido_stream_buffer_t *buffer, size_t len) {
     buffer->back_index = (buffer->back_index - len) % buffer->capacity;
     buffer->size -= len;
     if (buffer->size == 0) {
@@ -708,6 +708,7 @@ int rapido_close_connection(rapido_t *session, rapido_connection_id_t connection
     assert(connection != NULL);
     close(connection->socket);
     connection->socket = -1;
+    return 0;
 }
 
 rapido_stream_id_t rapido_open_stream(rapido_t *session) {
@@ -1248,6 +1249,7 @@ int rapido_server_handshake(rapido_t *session, size_t pending_connection_index) 
         close(connection->socket);
         rapido_array_delete(&session->server.pending_connections, pending_connection_index);
     }
+    return 0;
 }
 
 int rapido_read_connection(rapido_t *session, rapido_connection_id_t connection_id, uint64_t current_time) {
@@ -1609,4 +1611,5 @@ int rapido_free(rapido_t *session) {
         });
         rapido_array_free(&session->server.pending_connections);
     }
+    return 0;
 }
