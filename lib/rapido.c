@@ -291,7 +291,7 @@ void *rapido_stream_buffer_alloc(rapido_stream_buffer_t *buffer, size_t *len, si
         buffer->data = reallocarray(buffer->data, 1, buffer->capacity * 2);
         assert(buffer->data);
         buffer->capacity *= 2;
-        if (buffer->back_index < buffer->front_index) {
+        if (buffer->back_index <= buffer->front_index) {
             memcpy(buffer->data + buffer->front_index + buffer->size - buffer->back_index, buffer->data, buffer->back_index);
             buffer->back_index = buffer->front_index + buffer->size;
         }
