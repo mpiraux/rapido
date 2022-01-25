@@ -194,6 +194,7 @@ uint64_t get_time() {
     return tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
 }
 
+/** Returns a pointer to element at index, ensuring element is not already used */
 void *rapido_array_add(rapido_array_t *array, size_t index) {
     if (index >= array->capacity) {
         size_t new_capacity = max(index * 2, max(array->capacity * 2, 1));
@@ -210,6 +211,7 @@ void *rapido_array_add(rapido_array_t *array, size_t index) {
     return array->data + ((1 + array->item_size) * index) + 1;
 }
 
+/** Returns a pointer to element at index */
 void *rapido_array_get(rapido_array_t *array, size_t index) {
     if (index >= array->capacity) {
         return NULL;
@@ -218,6 +220,7 @@ void *rapido_array_get(rapido_array_t *array, size_t index) {
     return array->data[offset] == true ? array->data + offset + 1 : NULL;
 }
 
+/** Free element at index */
 int rapido_array_delete(rapido_array_t *array, size_t index) {
     if (index >= array->capacity) {
         return 1;
@@ -231,6 +234,7 @@ int rapido_array_delete(rapido_array_t *array, size_t index) {
     return 0;
 }
 
+/** Free the array associated data and reset its structure */
 void rapido_array_free(rapido_array_t *array) {
     if (array->capacity && array->data) {
         free(array->data);
@@ -238,6 +242,7 @@ void rapido_array_free(rapido_array_t *array) {
     }
 }
 
+/** Initialises and allocates a queue of given item size and capacity */
 void rapido_queue_init(rapido_queue_t *queue, size_t item_size, size_t capacity) {
     queue->data = malloc(item_size * capacity);
     assert(queue->data != NULL);
@@ -248,6 +253,7 @@ void rapido_queue_init(rapido_queue_t *queue, size_t item_size, size_t capacity)
     queue->item_size = item_size;
 }
 
+/** Returns a pointer to an new element pushed at the back of the queue */
 void *rapido_queue_push(rapido_queue_t *queue) {
     assert(queue->size < queue->capacity);
     size_t item_index = queue->back_index;
@@ -256,11 +262,14 @@ void *rapido_queue_push(rapido_queue_t *queue) {
     return queue->data + (item_index * queue->item_size);
 }
 
+/** Returns a pointer to the element peeked from the front of the queue */
 void *rapido_queue_peek(rapido_queue_t *queue) {
     assert(queue->size > 0);
     return queue->data + (queue->front_index * queue->item_size);
 }
 
+/** Returns a pointer to an element poped from the front of the queue.
+ * Note: Pushing on the queue can overwrite the memory zone returned. */
 void *rapido_queue_pop(rapido_queue_t *queue) {
     assert(queue->size > 0);
     size_t item_index = queue->front_index;
@@ -269,6 +278,7 @@ void *rapido_queue_pop(rapido_queue_t *queue) {
     return queue->data + (item_index * queue->item_size);
 }
 
+/** Free the queue associated data and reset its structure */
 void rapido_queue_free(rapido_queue_t *queue) {
     if (queue->capacity && queue->data) {
         free(queue->data);
@@ -276,6 +286,7 @@ void rapido_queue_free(rapido_queue_t *queue) {
     }
 }
 
+/** Initialises and allocates a circular buffer of given capacity */
 void rapido_stream_buffer_init(rapido_stream_buffer_t *buffer, size_t capacity) {
     buffer->data = malloc(capacity);
     assert(buffer->data != NULL);
@@ -285,6 +296,8 @@ void rapido_stream_buffer_init(rapido_stream_buffer_t *buffer, size_t capacity) 
     buffer->back_index = 0;
 }
 
+/** Returns a pointer to a memory zone at the back of the buffer. Its length is between *len and min_len.
+ * The buffer grows when its maximum capacity is exceeded or when min_len cannot be satisfied. */
 void *rapido_stream_buffer_alloc(rapido_stream_buffer_t *buffer, size_t *len, size_t min_len) {
     size_t wrap_len = buffer->capacity - buffer->back_index;
     while (buffer->size + *len > buffer->capacity || wrap_len < min_len) {  // TODO: Find the right coeff instead
@@ -304,6 +317,7 @@ void *rapido_stream_buffer_alloc(rapido_stream_buffer_t *buffer, size_t *len, si
     return ptr;
 }
 
+/** Releases len bytes at the back of the buffer. */
 void rapido_stream_buffer_trim_end(rapido_stream_buffer_t *buffer, size_t len) {
     buffer->back_index = (buffer->back_index - len) % buffer->capacity;
     buffer->size -= len;
@@ -313,6 +327,7 @@ void rapido_stream_buffer_trim_end(rapido_stream_buffer_t *buffer, size_t len) {
     }
 }
 
+/** Copies a memory zone to the back of the buffer. */
 void rapido_stream_buffer_push(rapido_stream_buffer_t *buffer, void *input, size_t len) {
     size_t total_len = len;
     void *ptr = rapido_stream_buffer_alloc(buffer, &len, 0);
@@ -323,6 +338,8 @@ void rapido_stream_buffer_push(rapido_stream_buffer_t *buffer, void *input, size
     }
 }
 
+/** Returns a pointer to a memory zone starting at a given offset from the front of the buffer.
+ * The zone spans atmost *len bytes. */
 void *rapido_stream_buffer_peek(rapido_stream_buffer_t *buffer, size_t offset, size_t *len) {
     if (offset >= buffer->size) {
         *len = 0;
@@ -333,6 +350,8 @@ void *rapido_stream_buffer_peek(rapido_stream_buffer_t *buffer, size_t offset, s
     return buffer->data + ((buffer->front_index + offset) % buffer->capacity);
 }
 
+/** Returns a pointer to a memory zone starting from the front of the buffer and spanning atmost *len bytes.
+ * The zone is released from the buffer. */
 void *rapido_stream_buffer_get(rapido_stream_buffer_t *buffer, size_t *len) {
     void *ptr = rapido_stream_buffer_peek(buffer, 0, len);
     buffer->front_index = (buffer->front_index + *len) % buffer->capacity;
@@ -344,6 +363,7 @@ void *rapido_stream_buffer_get(rapido_stream_buffer_t *buffer, size_t *len) {
     return ptr;
 }
 
+/** Free the circular buffer associated data and reset its structure */
 void rapido_stream_buffer_free(rapido_stream_buffer_t *buffer) {
     if (buffer->capacity && buffer->data) {
         free(buffer->data);
@@ -351,6 +371,7 @@ void rapido_stream_buffer_free(rapido_stream_buffer_t *buffer) {
     memset(buffer, 0, sizeof(rapido_stream_buffer_t));
 }
 
+/** Adds the given inclusive range to the list and merges overlapping ranges. */
 int rapido_add_range(rapido_range_list_t *list, uint64_t low, uint64_t high) {
     assert(low < high);
     assert(list->size < RANGES_LEN);
@@ -397,6 +418,7 @@ int rapido_add_range(rapido_range_list_t *list, uint64_t low, uint64_t high) {
     return 0;
 }
 
+/** Returns the lowest range from the list. */
 void rapido_peek_range(rapido_range_list_t *list, uint64_t *low, uint64_t *high) {
     *low = 0;
     *high = 0;
@@ -406,6 +428,7 @@ void rapido_peek_range(rapido_range_list_t *list, uint64_t *low, uint64_t *high)
     }
 }
 
+/** Removes ranges below or equal to the given value. */
 uint64_t rapido_trim_range(rapido_range_list_t *list, uint64_t limit) {
     uint64_t offset = -1;
     for (int i = 0; i < list->size; i++) {
@@ -422,6 +445,7 @@ uint64_t rapido_trim_range(rapido_range_list_t *list, uint64_t limit) {
     return offset;
 }
 
+/** Initialises and allocates the buffer. */
 void rapido_stream_receive_buffer_init(rapido_stream_receive_buffer_t *receive, size_t capacity) {
     memset(receive, 0, sizeof(rapido_stream_receive_buffer_t));
     receive->buffer.data = malloc(capacity);
@@ -429,6 +453,7 @@ void rapido_stream_receive_buffer_init(rapido_stream_receive_buffer_t *receive, 
     receive->buffer.capacity = capacity;
 }
 
+/** Copies a given memory zone to a given offset in the buffer. */
 int rapido_stream_receive_buffer_write(rapido_stream_receive_buffer_t *receive, size_t offset, void *input, size_t len) {
     assert(offset >= receive->read_offset);
     size_t write_offset = offset - receive->read_offset;
@@ -451,6 +476,8 @@ int rapido_stream_receive_buffer_write(rapido_stream_receive_buffer_t *receive, 
     return 0;
 }
 
+/** Returns a pointer to a memory zone at the start of the buffer of atmost *len bytes.
+ * The zone is released from the buffer.*/
 void *rapido_stream_receive_buffer_get(rapido_stream_receive_buffer_t *receive, size_t *len) {
     size_t limit = max(*len, receive->read_offset + *len);
     size_t read_offset = rapido_trim_range(&receive->ranges, limit);
@@ -468,6 +495,7 @@ void *rapido_stream_receive_buffer_get(rapido_stream_receive_buffer_t *receive, 
     return ptr;
 }
 
+/** Free the circular buffer associated data and reset its structure */
 void rapido_stream_receive_buffer_free(rapido_stream_receive_buffer_t *receive) {
     if (receive->buffer.capacity && receive->buffer.data != NULL) {
         free(receive->buffer.data);

@@ -71,6 +71,7 @@ typedef struct {
 
 #define RANGES_LEN 64
 
+/** A uin64_t interval list, sorted by ascending order. Overlapping ranges are merged. */
 typedef struct {
     struct rapido_range_item {
         uint64_t low;
