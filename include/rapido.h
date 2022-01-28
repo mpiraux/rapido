@@ -67,7 +67,7 @@ typedef struct {
     size_t front_index;
     size_t back_index;
     uint8_t *data;
-} rapido_stream_buffer_t;
+} rapido_buffer_t;
 
 #define RANGES_LEN 64
 
@@ -93,7 +93,7 @@ typedef struct {
     } buffer;
     rapido_range_list_t ranges;
     size_t read_offset;
-} rapido_stream_receive_buffer_t;
+} rapido_range_buffer_t;
 
 void *rapido_queue_pop(rapido_queue_t *queue);
 
@@ -162,8 +162,8 @@ typedef struct {
     struct st_ptls_traffic_protection_t *decryption_ctx;
     struct st_ptls_traffic_protection_t *own_decryption_ctx;
 
-    rapido_stream_buffer_t receive_buffer;
-    rapido_stream_buffer_t send_buffer;
+    rapido_buffer_t receive_buffer;
+    rapido_buffer_t send_buffer;
 
     rapido_queue_t sent_records;
     size_t sent_offset;
@@ -198,11 +198,11 @@ typedef struct {
 
     set_t connections;
 
-    rapido_stream_receive_buffer_t read_buffer;
+    rapido_range_buffer_t read_buffer;
     size_t read_fin;
     bool fin_received;
 
-    rapido_stream_buffer_t send_buffer;
+    rapido_buffer_t send_buffer;
     size_t write_offset;
     size_t write_fin;
     bool fin_set;
