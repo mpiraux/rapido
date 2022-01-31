@@ -164,12 +164,12 @@ typedef struct {
     struct st_ptls_traffic_protection_t *own_decryption_ctx;
 
     rapido_buffer_t receive_buffer;
+    bool receive_buffer_fragmented;
     rapido_buffer_t send_buffer;
 
     rapido_queue_t sent_records;
     size_t sent_offset;
     uint64_t last_received_record_sequence;
-    uint8_t fragment_buffer[16384 + 256];
 
     bool require_ack;
     uint64_t last_receive_time;

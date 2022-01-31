@@ -1377,8 +1377,8 @@ int rapido_read_connection(rapido_t *session, rapido_connection_id_t connection_
     int wants_to_read = 1;
     if (recvd == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
         recvd = 0;
+        wants_to_read = 0;
         if (connection->receive_buffer.size == recvbuf_max) {  // Else there is something to read in the receiver buffer already
-            wants_to_read = 0;
             rapido_buffer_trim_end(&connection->receive_buffer, recvbuf_max);
             return wants_to_read;
         }
@@ -1395,7 +1395,6 @@ int rapido_read_connection(rapido_t *session, rapido_connection_id_t connection_
     size_t consumed = 0;
     recvd = UINT64_MAX;
     recvbuf = rapido_buffer_peek(&connection->receive_buffer, 0, &recvd);
-    wants_to_read = 1;
     if (!session->is_server && !ptls_handshake_is_complete(connection->tls)) {
         ptls_buffer_t handshake_buffer = {0};
         ptls_buffer_init(&handshake_buffer, "", 0);
@@ -1435,8 +1434,10 @@ int rapido_read_connection(rapido_t *session, rapido_connection_id_t connection_
                 uint8_t *additional_data = rapido_buffer_peek(&connection->receive_buffer, recvd, &additional_len);
                 if (additional_len != record_missing_len) {
                     consumed = recvd_offset;
+                    connection->receive_buffer_fragmented = true;
                     break;
                 }
+                connection->receive_buffer_fragmented = false;
             }
 
             uint8_t plaintext_buf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
@@ -1603,11 +1604,13 @@ do {
                 nfds++;
             });
         }
+        bool wants_to_write = false;
         rapido_array_iter(&session->connections, rapido_connection_t * connection, {
             fds[nfds].fd = connection->socket;
             fds[nfds].events = POLLIN;
             if (rapido_connection_wants_to_send(session, connection, current_time)) {
                 fds[nfds].events |= POLLOUT;
+                wants_to_write = true;
             }
             connections_index[nfds] = i;
             fd_types[nfds] = fd_connection;
@@ -1643,15 +1646,15 @@ do {
             fd_offset++;
         }
 
-        int wants_to_read;
+        bool wants_to_read;
         do {
-            wants_to_read = 0;
+            wants_to_read = false;
             for (int i = fd_offset; i < nfds; i++) {
                 /* Read incoming TLS records */
                 rapido_connection_t *connection = rapido_array_get(&session->connections, connections_index[i]);
-                if (fds[i].revents & POLLIN || connection->receive_buffer.size > 0) {
+                if (fds[i].revents & POLLIN || (connection->receive_buffer.size > 0 && !connection->receive_buffer_fragmented)) {
                     if (rapido_read_connection(session, connections_index[i], current_time)) {
-                        wants_to_read = 1;
+                        wants_to_read = true;
                     } else {
                         fds[i].revents &= ~(POLLIN);
                     }
@@ -1661,10 +1664,12 @@ do {
 
         /* Write outgoing TLS records */
         current_time = get_time();
-        int wants_to_write = 0;
         rapido_array_iter(&session->connections, rapido_connection_t * connection, {
             if (rapido_connection_wants_to_send(session, connection, current_time)) {
-                wants_to_write = 1;
+                if (!wants_to_write) {
+                    fds_change = true;
+                }
+                wants_to_write = true;
                 break;
             }
         });
@@ -1673,7 +1678,7 @@ do {
             for (int i = fd_offset; i < nfds; i++) {
                 if (fds[i].revents & POLLOUT) {
                     if (rapido_send_on_connection(session, connections_index[i], current_time)) {
-                        wants_to_write = 1;
+                        wants_to_write = true;
                     } else {
                         fds[i].revents &= ~(POLLOUT);
                     }
