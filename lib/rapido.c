@@ -1593,7 +1593,7 @@ int rapido_send_on_connection(rapido_t *session, rapido_connection_id_t connecti
     return wants_to_write;
 }
 
-int rapido_run_network(rapido_t *session) {
+int rapido_run_network(rapido_t *session, int timeout) {
     // TODO: Read and writes until it blocks
     QLOG(session, "api", "rapido_run_network", "", NULL);
     int no_fds = 0;
@@ -1642,7 +1642,7 @@ do {
             nfds++;
         });
 
-        int polled_fds = poll(fds, nfds, no_fds > 0 ? 1000 : 0);
+        int polled_fds = poll(fds, nfds, no_fds > 0 ? timeout : 0);
         assert(polled_fds >= 0 || errno == EINTR);
         if (polled_fds == 0) {
             no_fds++;

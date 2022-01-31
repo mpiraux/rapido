@@ -242,7 +242,7 @@ rapido_address_id_t rapido_add_remote_address(rapido_t *session, struct sockaddr
 int rapido_remove_address(rapido_t *session, rapido_address_id_t local_address_id);
 
 rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local_address_id, uint8_t remote_address_id);
-int rapido_run_network(rapido_t *session);
+int rapido_run_network(rapido_t *session, int timeout);
 int rapido_retransmit_connection(rapido_t *session, rapido_connection_id_t connection_id, set_t connections);
 int rapido_close_connection(rapido_t *session, rapido_connection_id_t connection_id);
 

@@ -12,6 +12,7 @@
 #include "util.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
+#define RUN_NETWORK_TIMEOUT 1000
 
 static void usage(const char *cmd)
 {
@@ -69,7 +70,7 @@ uint8_t *stream_produce_random_data(rapido_t *session, rapido_stream_id_t stream
 void run_server(rapido_t *session) {
     bool connection_closed = false;
     while (!connection_closed) {
-        rapido_run_network(session);
+        rapido_run_network(session, RUN_NETWORK_TIMEOUT);
         while (session->pending_notifications.size > 0) {
             rapido_application_notification_t *notification = rapido_queue_pop(&session->pending_notifications);
             if (notification->notification_type == rapido_new_connection) {
@@ -92,7 +93,7 @@ void run_client(rapido_t *session, size_t data_to_receive) {
     uint64_t start_time = get_time();
     uint64_t data_received = 0;
     while (data_received < data_to_receive) {
-        rapido_run_network(session);
+        rapido_run_network(session, RUN_NETWORK_TIMEOUT);
         while (session->pending_notifications.size > 0) {
             rapido_application_notification_t *notification = rapido_queue_pop(&session->pending_notifications);
             if (notification->notification_type == rapido_new_stream) {
