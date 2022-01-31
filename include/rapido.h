@@ -124,6 +124,7 @@ typedef struct {
 
     rapido_array_t local_addresses;
     rapido_address_id_t next_local_address_id;
+    set_t addresses_advertised;
     rapido_array_t remote_addresses;
     rapido_address_id_t next_remote_address_id;
 
@@ -189,6 +190,7 @@ typedef struct {
     ptls_context_t *tls_ctx;
     ptls_t *tls;
     uint8_t tls_session_id[TLS_SESSION_ID_LEN];
+    rapido_address_id_t local_address_id;
 } rapido_pending_connection_t;
 
 typedef uint8_t *(* rapido_stream_producer_t)(rapido_t *, rapido_stream_id_t, void *, uint64_t, size_t *);
