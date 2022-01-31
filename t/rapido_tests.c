@@ -654,6 +654,7 @@ void test_multiple_server_addresses() {
     rapido_connection_t *s_c2 = rapido_array_get(&server->connections, s_cid2);
 
     ok(s_c1->stats.bytes_received > 0 && s_c2->stats.bytes_received > 0);
+    ok(s_c1->remote_address_id == c_aid_b && s_c2->remote_address_id == c_aid_d);
 
     size_t read_len = 2 * sizeof(stream_data);
     void *ptr = rapido_read_stream(server, stream_id, &read_len);

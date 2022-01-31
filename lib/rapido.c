@@ -77,6 +77,13 @@ void tohex(uint8_t *in, size_t len, char *out) {
     *out = 0;
 }
 
+int sockaddr_equal(struct sockaddr* a, struct sockaddr* b) {
+    if (a->sa_family != b->sa_family) {
+        return 0;
+    }
+    return memcmp(SOCKADDR_ADDR(a), SOCKADDR_ADDR(b), a->sa_family == AF_INET ? 4 : 16) == 0 && *SOCKADDR_PORT(a) == *SOCKADDR_PORT(b);
+}
+
 int collect_rapido_extensions(ptls_t *tls, struct st_ptls_handshake_properties_t *properties, uint16_t type) {
     return type == TLS_RAPIDO_HELLO_EXT;
 }
@@ -1060,6 +1067,16 @@ int rapido_process_new_address_frame(rapido_t *session, rapido_new_address_frame
     address->ss_family = frame->family == 4 ? AF_INET : AF_INET6;
     memcpy(SOCKADDR_ADDR(address), frame->addr, frame->family == 4 ? 4 : 16);
     *SOCKADDR_PORT(address) = htons(frame->port);
+    rapido_array_iter(&session->connections, rapido_connection_t *connection, {
+        if (connection->socket != -1) {
+            struct sockaddr_storage peer_address;
+            socklen_t peer_address_len = sizeof(struct sockaddr_storage);
+            assert_perror(getpeername(connection->socket, (struct sockaddr *) &peer_address, &peer_address_len) == -1);
+            if (sockaddr_equal((struct sockaddr *) address, (struct sockaddr *) &peer_address)) {
+                connection->remote_address_id = frame->address_id;
+            }
+        }
+    });
     if (!session->is_server || frame->address_id != 0) {  // TODO: Fix this notification
         rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
         notification->notification_type = rapido_new_remote_address;
@@ -1344,6 +1361,14 @@ int rapido_server_handshake(rapido_t *session, size_t pending_connection_index) 
             new_connection->connection_id = tls_session_id_sequence;
             new_connection->tls = session->tls;
             new_connection->local_address_id = connection->local_address_id;
+            struct sockaddr_storage peer_address;
+            socklen_t peer_address_len = sizeof(struct sockaddr_storage);
+            assert_perror(getpeername(new_connection->socket, (struct sockaddr *) &peer_address, &peer_address_len) == -1);
+            rapido_array_iter(&session->remote_addresses, struct sockaddr_storage *remote_address, {
+                if (sockaddr_equal((struct sockaddr *) remote_address, (struct sockaddr *) &peer_address)) {
+                    new_connection->remote_address_id = (rapido_address_id_t) i;
+                }
+            });
 
             assert(setup_connection_crypto_context(session, new_connection) == 0);
             // TODO: Find the addresses it uses
