@@ -113,9 +113,27 @@ typedef struct {
 } rapido_record_metadata_t;
 
 typedef struct {
+    ptls_context_t *tls_ctx;
+    char *server_name;
+
+    rapido_array_t local_addresses;
+    rapido_address_id_t next_local_address_id;
+
+    rapido_array_t listen_sockets;
+    rapido_array_t pending_connections;
+
+    rapido_array_t sessions;
+
+    bool is_server;   // For QLOG macros
+    struct {
+        FILE *out;
+        uint64_t reference_time;
+    } qlog;
+} rapido_server_t;
+
+typedef struct {
     ptls_t *tls;
     ptls_context_t *tls_ctx;
-    ptls_handshake_properties_t tls_properties;
 
     rapido_array_t connections;
     rapido_connection_id_t next_connection_id;
@@ -139,8 +157,7 @@ typedef struct {
         } client;
         struct {
             rapido_array_t listen_sockets;
-            rapido_array_t pending_connections;  // We don't care about the index here
-            size_t next_pending_connection;
+            rapido_array_t pending_connections;
             size_t tls_session_ids_sent;
         } server;
     };
@@ -149,7 +166,7 @@ typedef struct {
         FILE *out;
         uint64_t reference_time;
     } qlog;
-} rapido_t;
+} rapido_session_t;
 
 typedef struct {
     rapido_connection_id_t connection_id;
@@ -189,11 +206,12 @@ typedef struct {
     int socket;
     ptls_context_t *tls_ctx;
     ptls_t *tls;
+    ptls_handshake_properties_t tls_properties;
     uint8_t tls_session_id[TLS_SESSION_ID_LEN];
     rapido_address_id_t local_address_id;
 } rapido_pending_connection_t;
 
-typedef uint8_t *(* rapido_stream_producer_t)(rapido_t *, rapido_stream_id_t, void *, uint64_t, size_t *);
+typedef uint8_t *(* rapido_stream_producer_t)(rapido_session_t *, rapido_stream_id_t, void *, uint64_t, size_t *);
 
 typedef struct {
     rapido_stream_id_t stream_id;
@@ -235,26 +253,32 @@ typedef struct {
     };
 } rapido_application_notification_t;
 
-rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, const char *server_name, FILE *qlog_out);
+rapido_server_t *rapido_new_server(ptls_context_t *tls_ctx, const char *server_name, FILE *qlog_out);
+rapido_address_id_t rapido_add_server_address(rapido_server_t *server, struct sockaddr* addr, socklen_t addr_len);
+int rapido_remove_server_address(rapido_session_t *session, rapido_address_id_t local_address_id);
+int rapido_run_server_network(rapido_server_t *server, int timeout);
+rapido_application_notification_t *rapido_next_server_notification(rapido_server_t *server, size_t *session_index);
 
-rapido_address_id_t rapido_add_address(rapido_t *session, struct sockaddr* addr, socklen_t addr_len);
-rapido_address_id_t rapido_add_remote_address(rapido_t *session, struct sockaddr* addr, socklen_t addr_len);
-int rapido_remove_address(rapido_t *session, rapido_address_id_t local_address_id);
+rapido_session_t *rapido_new_session(ptls_context_t *tls_ctx, bool is_server, const char *server_name, FILE *qlog_out);
 
-rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local_address_id, uint8_t remote_address_id);
-int rapido_run_network(rapido_t *session, int timeout);
-int rapido_retransmit_connection(rapido_t *session, rapido_connection_id_t connection_id, set_t connections);
-int rapido_close_connection(rapido_t *session, rapido_connection_id_t connection_id);
+rapido_address_id_t rapido_add_address(rapido_session_t *session, struct sockaddr* addr, socklen_t addr_len);
+rapido_address_id_t rapido_add_remote_address(rapido_session_t *session, struct sockaddr* addr, socklen_t addr_len);
+int rapido_remove_address(rapido_session_t *session, rapido_address_id_t local_address_id);
 
-rapido_stream_id_t rapido_open_stream(rapido_t *session);
-int rapido_attach_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
-int rapido_remove_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
-int rapido_add_to_stream(rapido_t *session, rapido_stream_id_t stream_id, void *data, size_t len);
-int rapido_set_stream_producer(rapido_t *session, rapido_stream_id_t stream_id, rapido_stream_producer_t producer, void *producer_ctx);
-void *rapido_read_stream(rapido_t *session, rapido_stream_id_t stream_id, size_t *len);
-int rapido_close_stream(rapido_t *session, rapido_stream_id_t stream_id);
+rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8_t local_address_id, uint8_t remote_address_id);
+int rapido_run_network(rapido_session_t *session, int timeout);
+int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id_t connection_id, set_t connections);
+int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t connection_id);
 
-int rapido_receive(rapido_t *session);
-int rapido_free(rapido_t *session);
+rapido_stream_id_t rapido_open_stream(rapido_session_t *session);
+int rapido_attach_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
+int rapido_remove_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
+int rapido_add_to_stream(rapido_session_t *session, rapido_stream_id_t stream_id, void *data, size_t len);
+int rapido_set_stream_producer(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_stream_producer_t producer, void *producer_ctx);
+void *rapido_read_stream(rapido_session_t *session, rapido_stream_id_t stream_id, size_t *len);
+int rapido_close_stream(rapido_session_t *session, rapido_stream_id_t stream_id);
+
+int rapido_session_free(rapido_session_t *session);
+int rapido_server_free(rapido_server_t *server);
 
 #endif
