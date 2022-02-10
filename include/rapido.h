@@ -11,16 +11,16 @@
 typedef uint32_t rapido_connection_id_t;
 typedef uint32_t rapido_stream_id_t;
 
-#define STREAM_IS_CLIENT(sid) (((sid) & 0x1) == 0)
-#define STREAM_IS_SERVER(sid) (((sid) & 0x1) == 1)
+#define STREAM_IS_CLIENT(sid) (((sid)&0x1) == 0)
+#define STREAM_IS_SERVER(sid) (((sid)&0x1) == 1)
 
 typedef uint8_t rapido_address_id_t;
 typedef uint64_t set_t;
 
 #define SET_LEN 64
-#define SET_HAS(bs, e) (bs & (1ull << ((uint64_t) e)))
-#define SET_ADD(bs, e) bs = (bs | (1ull << ((uint64_t) e)))
-#define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t) e))))
+#define SET_HAS(bs, e) (bs & (1ull << ((uint64_t)e)))
+#define SET_ADD(bs, e) bs = (bs | (1ull << ((uint64_t)e)))
+#define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t)e))))
 #define SET_SIZE(bs) __builtin_popcountll(bs)
 
 #define TLS_SESSION_ID_LEN 32
@@ -38,7 +38,7 @@ typedef struct {
 #define rapido_array_iter(a, e, bl)                                                                                                \
     do {                                                                                                                           \
         for (int i = 0; i < (a)->capacity; i++) {                                                                                  \
-            size_t offset = (1 + (a)->item_size) * i;                                                                               \
+            size_t offset = (1 + (a)->item_size) * i;                                                                              \
             if ((a)->data[offset] == true) {                                                                                       \
                 e = (void *)(a)->data + offset + 1;                                                                                \
                 bl                                                                                                                 \
@@ -99,7 +99,7 @@ void *rapido_queue_pop(rapido_queue_t *queue);
 
 #define rapido_queue_iter(q, e, bl)                                                                                                \
     do {                                                                                                                           \
-        while ((q)->size) {                                                                                                          \
+        while ((q)->size) {                                                                                                        \
             e = rapido_queue_pop(q);                                                                                               \
             bl                                                                                                                     \
         }                                                                                                                          \
@@ -108,7 +108,7 @@ void *rapido_queue_pop(rapido_queue_t *queue);
 typedef struct {
     uint64_t tls_record_sequence;
     size_t ciphertext_len;
-    bool ack_eliciting;  // Also implies 'retransmittable'
+    bool ack_eliciting; // Also implies 'retransmittable'
     uint64_t send_time;
 } rapido_record_metadata_t;
 
@@ -139,7 +139,7 @@ typedef struct {
         } client;
         struct {
             rapido_array_t listen_sockets;
-            rapido_array_t pending_connections;  // We don't care about the index here
+            rapido_array_t pending_connections; // We don't care about the index here
             size_t next_pending_connection;
             size_t tls_session_ids_sent;
         } server;
@@ -193,7 +193,7 @@ typedef struct {
     rapido_address_id_t local_address_id;
 } rapido_pending_connection_t;
 
-typedef uint8_t *(* rapido_stream_producer_t)(rapido_t *, rapido_stream_id_t, void *, uint64_t, size_t *);
+typedef uint8_t *(*rapido_stream_producer_t)(rapido_t *, rapido_stream_id_t, void *, uint64_t, size_t *);
 
 typedef struct {
     rapido_stream_id_t stream_id;
@@ -237,8 +237,8 @@ typedef struct {
 
 rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, const char *server_name, FILE *qlog_out);
 
-rapido_address_id_t rapido_add_address(rapido_t *session, struct sockaddr* addr, socklen_t addr_len);
-rapido_address_id_t rapido_add_remote_address(rapido_t *session, struct sockaddr* addr, socklen_t addr_len);
+rapido_address_id_t rapido_add_address(rapido_t *session, struct sockaddr *addr, socklen_t addr_len);
+rapido_address_id_t rapido_add_remote_address(rapido_t *session, struct sockaddr *addr, socklen_t addr_len);
 int rapido_remove_address(rapido_t *session, rapido_address_id_t local_address_id);
 
 rapido_connection_id_t rapido_create_connection(rapido_t *session, uint8_t local_address_id, uint8_t remote_address_id);
@@ -250,7 +250,8 @@ rapido_stream_id_t rapido_open_stream(rapido_t *session);
 int rapido_attach_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
 int rapido_remove_stream(rapido_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
 int rapido_add_to_stream(rapido_t *session, rapido_stream_id_t stream_id, void *data, size_t len);
-int rapido_set_stream_producer(rapido_t *session, rapido_stream_id_t stream_id, rapido_stream_producer_t producer, void *producer_ctx);
+int rapido_set_stream_producer(rapido_t *session, rapido_stream_id_t stream_id, rapido_stream_producer_t producer,
+                               void *producer_ctx);
 void *rapido_read_stream(rapido_t *session, rapido_stream_id_t stream_id, size_t *len);
 int rapido_close_stream(rapido_t *session, rapido_stream_id_t stream_id);
 
