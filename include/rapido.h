@@ -97,7 +97,7 @@ typedef struct {
 
 void *rapido_queue_pop(rapido_queue_t *queue);
 
-#define rapido_queue_iter(q, e, bl)                                                                                                \
+#define rapido_queue_drain(q, e, bl)                                                                                               \
     do {                                                                                                                           \
         while ((q)->size) {                                                                                                        \
             e = rapido_queue_pop(q);                                                                                               \

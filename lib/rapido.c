@@ -1228,7 +1228,7 @@ int rapido_prepare_record(rapido_t *session, rapido_connection_t *connection, ui
         for (int j = 0; j < SET_LEN && consumed < *len; j++) {
             if (SET_HAS(connection->retransmit_connections, j)) {
                 rapido_connection_t *source_connection = rapido_array_get(&session->connections, j);
-                rapido_queue_iter(&source_connection->sent_records, rapido_record_metadata_t * record, {
+                rapido_queue_drain(&source_connection->sent_records, rapido_record_metadata_t * record, {
                     if (record->ack_eliciting) {
                         if (consumed + TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(record->ciphertext_len) > *len) {
                             break;

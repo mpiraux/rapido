@@ -103,7 +103,7 @@ void run_client(rapido_t *session, size_t data_to_receive) {
                 size_t read_len = UINT64_MAX;
                 rapido_read_stream(session, notification->stream_id, &read_len);
                 data_received += read_len;
-                rapido_queue_iter(&session->pending_notifications, notification, {});
+                rapido_queue_drain(&session->pending_notifications, notification, {});
             }
         }
     }
