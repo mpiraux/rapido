@@ -18,7 +18,7 @@
     do {                                                                                                                           \
         if (!(session)->qlog.out)                                                                                                  \
             break;                                                                                                                 \
-        fprintf((session)->qlog.out, "[%lu, \"%s:%s:%s\", \"%s\", ", get_time() - (session)->qlog.reference_time,                  \
+        fprintf((session)->qlog.out, "[%lu, \"%s:%s:%s\", \"%s\", ", get_usec_time() - (session)->qlog.reference_time,             \
                 (session)->is_server ? "server" : "client", ev_type, cat, trigger);                                                \
         fprintf((session)->qlog.out, data_fmt ? data_fmt : "{}", ##__VA_ARGS__);                                                   \
         fprintf((session)->qlog.out, "],\n");                                                                                      \
@@ -202,7 +202,7 @@ bool is_tls_record_complete(const uint8_t *data, size_t data_len, size_t *missin
     }
 }
 
-uint64_t get_time() {
+uint64_t get_usec_time() {
     struct timespec tv;
     assert(clock_gettime(CLOCK_REALTIME, &tv) == 0);
     return tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
@@ -617,7 +617,7 @@ rapido_t *rapido_new(ptls_context_t *tls_ctx, bool is_server, const char *server
     }
 
     session->qlog.out = qlog_out;
-    session->qlog.reference_time = get_time();
+    session->qlog.reference_time = get_usec_time();
     QLOG(session, "api", "rapido_new", "", "{\"is_server\": %d, \"server_name\": \"%s\"}", is_server, server_name);
     return session;
 }
@@ -1460,7 +1460,7 @@ int rapido_read_connection(rapido_t *session, rapido_connection_id_t connection_
     } else if (recvd == -1) {
         recvd = 0;
     }
-    current_time = get_time();
+    current_time = get_usec_time();
     rapido_buffer_trim_end(&connection->receive_buffer, recvbuf_max - recvd);
     size_t consumed = 0;
     recvd = UINT64_MAX;
@@ -1609,7 +1609,7 @@ int rapido_send_on_connection(rapido_t *session, rapido_connection_id_t connecti
                 record->ciphertext_len = sendbuf.off;
                 record->tls_record_sequence = ptls_get_traffic_protection(session->tls, 0)->seq - 1;
                 record->ack_eliciting = is_ack_eliciting;
-                record->send_time = get_time();
+                record->send_time = get_usec_time();
                 connection->encryption_ctx->seq = ptls_get_traffic_protection(session->tls, 0)->seq;
             } else {
                 break;
@@ -1645,7 +1645,7 @@ int rapido_run_network(rapido_t *session, int timeout) {
     int no_fds = 0;
     bool fds_change;
     do {
-        uint64_t current_time = get_time();
+        uint64_t current_time = get_usec_time();
         fds_change = false;
         size_t nfds = session->connections.size;
         if (session->is_server) {
@@ -1730,7 +1730,7 @@ int rapido_run_network(rapido_t *session, int timeout) {
         } while (polled_fds && wants_to_read && session->pending_notifications.size < session->pending_notifications.capacity / 2);
 
         /* Write outgoing TLS records */
-        current_time = get_time();
+        current_time = get_usec_time();
         rapido_array_iter(&session->connections, rapido_connection_t * connection, {
             if (rapido_connection_wants_to_send(session, connection, current_time)) {
                 if (!wants_to_write) {
