@@ -277,10 +277,9 @@ void *rapido_queue_push(rapido_queue_t *queue) {
     return queue->data + (item_index * queue->item_size);
 }
 
-/** Returns a pointer to the element peeked from the front of the queue */
+/** Returns a pointer to the element peeked from the front of the queue, or NULL if none is present. */
 void *rapido_queue_peek(rapido_queue_t *queue) {
-    assert(queue->size > 0);
-    return queue->data + (queue->front_index * queue->item_size);
+    return queue->size ? queue->data + (queue->front_index * queue->item_size) : NULL;
 }
 
 /** Returns a pointer to an element poped from the front of the queue.
@@ -1035,8 +1034,8 @@ int rapido_decode_ack_frame(rapido_t *session, uint8_t *buf, size_t *len, rapido
 int rapido_process_ack_frame(rapido_t *session, rapido_ack_frame_t *frame) {
     rapido_connection_t *connection = rapido_array_get(&session->connections, frame->connection_id);
     assert(connection != NULL);
-    while (connection->sent_records.size > 0) {
-        rapido_record_metadata_t *record = rapido_queue_peek(&connection->sent_records);
+    rapido_record_metadata_t *record;
+    while ((record = rapido_queue_peek(&connection->sent_records))) {
         if (record->tls_record_sequence <= frame->last_record_acknowledged) {
             size_t record_len = record->ciphertext_len;
             rapido_buffer_pop(&connection->send_buffer, &record_len);
@@ -1189,8 +1188,7 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
                 rapido_connection_t *source_connection = rapido_array_get(&session->connections, j);
                 if (source_connection->sent_records.size > 0) {
                     rapido_record_metadata_t *record = NULL;
-                    while (source_connection->sent_records.size && (record = rapido_queue_peek(&source_connection->sent_records)) &&
-                           !record->ack_eliciting) {
+                    while ((record = rapido_queue_peek(&source_connection->sent_records)) && !record->ack_eliciting) {
                         size_t record_len = record->ciphertext_len;
                         rapido_buffer_pop(&source_connection->send_buffer, &record_len);
                         if (record_len < record->ciphertext_len) {
