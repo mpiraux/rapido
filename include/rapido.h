@@ -11,8 +11,8 @@
 typedef uint32_t rapido_connection_id_t;
 typedef uint32_t rapido_stream_id_t;
 
-#define STREAM_IS_CLIENT(sid) (((sid)&0x1) == 0)
-#define STREAM_IS_SERVER(sid) (((sid)&0x1) == 1)
+#define CLIENT_STREAM(sid) (((sid)&0x1) == 0)
+#define SERVER_STREAM(sid) (((sid)&0x1) == 1)
 
 typedef uint8_t rapido_address_id_t;
 typedef uint64_t set_t;

@@ -917,7 +917,7 @@ int rapido_decode_stream_frame(rapido_t *session, uint8_t *buf, size_t *len, rap
 int rapido_process_stream_frame(rapido_t *session, rapido_stream_frame_t *frame) {
     rapido_stream_t *stream = rapido_array_get(&session->streams, frame->stream_id);
     if (stream == NULL) {
-        assert(STREAM_IS_CLIENT(frame->stream_id) == session->is_server);
+        assert(CLIENT_STREAM(frame->stream_id) == session->is_server);
         stream = rapido_array_add(&session->streams, frame->stream_id);
         memset(stream, 0, sizeof(rapido_stream_t));
         stream->stream_id = frame->stream_id;
