@@ -361,7 +361,8 @@ void rapido_buffer_push(rapido_buffer_t *buffer, void *input, size_t len) {
     size_t total_len = len;
     void *ptr = rapido_buffer_alloc(buffer, &len, 0);
     memcpy(ptr, input, len);
-    if (len < total_len) {
+    len = total_len - len;
+    if (len) {
         ptr = rapido_buffer_alloc(buffer, &len, 0);
         memcpy(ptr, input + len, total_len - len);
     }
