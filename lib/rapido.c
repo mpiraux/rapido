@@ -234,7 +234,7 @@ void *rapido_array_get(rapido_array_t *array, size_t index) {
     return array->data[offset] == true ? array->data + offset + 1 : NULL;
 }
 
-/** Free element at index */
+/** Marks element at index as not used. */
 int rapido_array_delete(rapido_array_t *array, size_t index) {
     if (index >= array->capacity) {
         return 1;
@@ -364,9 +364,9 @@ void *rapido_buffer_peek(rapido_buffer_t *buffer, size_t offset, size_t *len) {
     return buffer->data + ((buffer->front_index + offset) % buffer->capacity);
 }
 
-/** Returns a pointer to a memory zone starting from the front of the buffer and spanning atmost *len bytes.
+/** Returns a pointer to a memory zone starting from the front of the buffer and spanning at most *len bytes.
  * The zone is released from the buffer. */
-void *rapido_buffer_get(rapido_buffer_t *buffer, size_t *len) {
+void *rapido_buffer_pop(rapido_buffer_t *buffer, size_t *len) {
     void *ptr = rapido_buffer_peek(buffer, 0, len);
     buffer->front_index = (buffer->front_index + *len) % buffer->capacity;
     buffer->size -= *len;
@@ -860,7 +860,7 @@ int rapido_prepare_stream_frame(rapido_t *session, rapido_stream_t *stream, uint
         stream_data = stream->producer(session, stream->stream_id, stream->producer_ctx, stream->write_offset, &payload_len);
     } else {
         // TODO: Handle when the buffer returns a smaller pointer due to buffer cycling
-        stream_data = rapido_buffer_get(&stream->send_buffer, &payload_len);
+        stream_data = rapido_buffer_pop(&stream->send_buffer, &payload_len);
     }
     bool fin = stream->fin_set && stream->write_offset + payload_len == stream->write_fin;
     if (payload_len == 0 && !fin)
@@ -1038,10 +1038,10 @@ int rapido_process_ack_frame(rapido_t *session, rapido_ack_frame_t *frame) {
         rapido_record_metadata_t *record = rapido_queue_peek(&connection->sent_records);
         if (record->tls_record_sequence <= frame->last_record_acknowledged) {
             size_t record_len = record->ciphertext_len;
-            rapido_buffer_get(&connection->send_buffer, &record_len);
+            rapido_buffer_pop(&connection->send_buffer, &record_len);
             if (record_len < record->ciphertext_len) {
                 record_len = record->ciphertext_len - record_len;
-                rapido_buffer_get(&connection->send_buffer, &record_len);
+                rapido_buffer_pop(&connection->send_buffer, &record_len);
             }
             connection->sent_offset -= record->ciphertext_len;
             rapido_queue_pop(&connection->sent_records);
@@ -1191,10 +1191,10 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
                     while (source_connection->sent_records.size && (record = rapido_queue_peek(&source_connection->sent_records)) &&
                            !record->ack_eliciting) {
                         size_t record_len = record->ciphertext_len;
-                        rapido_buffer_get(&source_connection->send_buffer, &record_len);
+                        rapido_buffer_pop(&source_connection->send_buffer, &record_len);
                         if (record_len < record->ciphertext_len) {
                             record_len = record->ciphertext_len - record_len;
-                            rapido_buffer_get(&source_connection->send_buffer, &record_len);
+                            rapido_buffer_pop(&source_connection->send_buffer, &record_len);
                         }
                         rapido_queue_pop(&source_connection->sent_records);
                     }
@@ -1253,10 +1253,10 @@ int rapido_prepare_record(rapido_t *session, rapido_connection_t *connection, ui
                         *is_ack_eliciting = true;
                     }
                     size_t record_len = record->ciphertext_len;
-                    rapido_buffer_get(&source_connection->send_buffer, &record_len);
+                    rapido_buffer_pop(&source_connection->send_buffer, &record_len);
                     if (record_len < record->ciphertext_len) {
                         record_len = record->ciphertext_len - record_len;
-                        rapido_buffer_get(&source_connection->send_buffer, &record_len);
+                        rapido_buffer_pop(&source_connection->send_buffer, &record_len);
                     }
                     if (consumed >= *len) {
                         break;
@@ -1571,10 +1571,10 @@ int rapido_read_connection(rapido_t *session, rapido_connection_id_t connection_
         connection->stats.bytes_received += consumed;
     }
     size_t len = consumed;
-    rapido_buffer_get(&connection->receive_buffer, &len);
+    rapido_buffer_pop(&connection->receive_buffer, &len);
     if (len < consumed) {
         len = consumed - len;
-        rapido_buffer_get(&connection->receive_buffer, &len);
+        rapido_buffer_pop(&connection->receive_buffer, &len);
     }
     return wants_to_read;
 }
