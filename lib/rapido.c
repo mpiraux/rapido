@@ -100,10 +100,11 @@ int collected_rapido_extensions(ptls_t *tls, struct st_ptls_handshake_properties
         no_extensions++;
         extension++;
     }
-    if (properties->additional_extensions) {
-        free(properties->additional_extensions);
+    properties->additional_extensions =
+        reallocarray(properties->additional_extensions, no_extensions + 1, sizeof(ptls_raw_extension_t));
+    if (!properties->additional_extensions) {
+        return 1;
     }
-    properties->additional_extensions = malloc(sizeof(ptls_raw_extension_t) * (no_extensions + 1));
     memcpy(properties->additional_extensions, extensions, sizeof(ptls_raw_extension_t) * (no_extensions + 1));
     properties->collected_extensions = NULL;
     return 0;
@@ -1369,8 +1370,9 @@ int rapido_server_handshake(rapido_t *session, size_t pending_connection_index) 
             }
             assert(has_rapido_hello);
             session->tls_properties.collected_extensions = collected_rapido_extensions;
-            free(session->tls_properties.additional_extensions);
-            session->tls_properties.additional_extensions = malloc(sizeof(ptls_raw_extension_t) * 2);
+            session->tls_properties.additional_extensions =
+                reallocarray(session->tls_properties.additional_extensions, 2, sizeof(ptls_raw_extension_t));
+            assert(session->tls_properties.additional_extensions);
             session->tls_properties.additional_extensions[0].type = TLS_RAPIDO_HELLO_EXT;
             session->tls_properties.additional_extensions[0].data = ptls_iovec_init(NULL, 0);
             session->tls_properties.additional_extensions[1].type = UINT16_MAX;
