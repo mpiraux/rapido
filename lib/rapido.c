@@ -136,7 +136,6 @@ int setup_connection_crypto_context(rapido_t *session, rapido_connection_t *conn
                                       session->tls_ctx->hkdf_label_prefix__obsolete)) != 0)
         return -1;
 
-    assert(cipher->aead->iv_size >= 12);
     derive_connection_aead_iv(iv, connection->connection_id);
 
     connection->encryption_ctx = malloc(sizeof(struct st_ptls_traffic_protection_t));
@@ -181,19 +180,27 @@ int setup_connection_crypto_context(rapido_t *session, rapido_connection_t *conn
 }
 
 void parse_tls_record_header(const uint8_t *data, uint8_t *type, uint16_t *version, uint16_t *length) {
-    *type = data[0];
-    *version = ntohs(*(uint16_t *)(data + 1));
-    *length = ntohs(*(uint16_t *)(data + 3));
+    if (type) {
+        *type = data[0];
+    }
+    if (version) {
+        *version = ntohs(*(uint16_t *)(data + 1));
+    }
+    if (length) {
+        *length = ntohs(*(uint16_t *)(data + 3));
+    }
 }
 
 bool is_tls_record_complete(const uint8_t *data, size_t data_len, size_t *missing_len) {
+    if (!data || !missing_len) {
+        return false;
+    }
     if (data_len < TLS_RECORD_HEADER_LEN) {
         *missing_len = TLS_RECORD_HEADER_LEN - data_len;
         return false;
     } else {
-        uint8_t type;
-        uint16_t version, length;
-        parse_tls_record_header(data, &type, &version, &length);
+        uint16_t length;
+        parse_tls_record_header(data, NULL, NULL, &length);
         if (data_len < TLS_RECORD_HEADER_LEN + length) {
             *missing_len = TLS_RECORD_HEADER_LEN + length - data_len;
         } else {
@@ -268,7 +275,7 @@ void rapido_queue_init(rapido_queue_t *queue, size_t item_size, size_t capacity)
     queue->item_size = item_size;
 }
 
-/** Returns a pointer to an new element pushed at the back of the queue */
+/** Returns a pointer to a new element pushed at the back of the queue */
 void *rapido_queue_push(rapido_queue_t *queue) {
     assert(queue->size < queue->capacity);
     size_t item_index = queue->back_index;
@@ -310,15 +317,22 @@ void rapido_buffer_init(rapido_buffer_t *buffer, size_t capacity) {
     buffer->back_index = 0;
 }
 
-/** Returns a pointer to a memory zone at the back of the buffer. Its length is between *len and min_len.
+/** Returns a pointer to a memory zone at the back of the buffer. Its length is in the range [min_len, *len].
  * The buffer grows when its maximum capacity is exceeded or when min_len cannot be satisfied. */
 void *rapido_buffer_alloc(rapido_buffer_t *buffer, size_t *len, size_t min_len) {
-    size_t wrap_len = buffer->capacity - buffer->back_index;
-    while (buffer->size + *len > buffer->capacity || wrap_len < min_len) { // TODO: Find the right coeff instead
+    size_t wrap_len = buffer->capacity - buffer->back_index; // The length after which the space left wraps around the end of the
+                                                             // buffer
+    // TODO: Find the right coeff instead
+    while (buffer->size + *len > buffer->capacity || wrap_len < min_len) { // While the required size exceed the capacity or the
+                                                                           // wrap_len is too low, grow the buffer.
         buffer->data = reallocarray(buffer->data, 1, buffer->capacity * 2);
         assert(buffer->data);
         buffer->capacity *= 2;
         if (buffer->back_index <= buffer->front_index) {
+            /*    v-----------v wrap_len               v-----------v wrap_len
+             * |xx.........xxx|  =>   |...........xxxxx............|
+             *    |        |_ front_index         |    |_ back_index
+             *    |_ back_index                   |_ front_index                                                                  */
             memcpy(buffer->data + buffer->front_index + buffer->size - buffer->back_index, buffer->data, buffer->back_index);
             buffer->back_index = buffer->front_index + buffer->size;
         }
@@ -333,6 +347,7 @@ void *rapido_buffer_alloc(rapido_buffer_t *buffer, size_t *len, size_t min_len) 
 
 /** Releases len bytes at the back of the buffer. */
 void rapido_buffer_trim_end(rapido_buffer_t *buffer, size_t len) {
+    assert(len <= buffer->size);
     buffer->back_index = (buffer->back_index - len) % buffer->capacity;
     buffer->size -= len;
     if (buffer->size == 0) {
@@ -353,7 +368,7 @@ void rapido_buffer_push(rapido_buffer_t *buffer, void *input, size_t len) {
 }
 
 /** Returns a pointer to a memory zone starting at a given offset from the front of the buffer.
- * The zone spans atmost *len bytes. */
+ * The zone spans at most *len bytes. */
 void *rapido_buffer_peek(rapido_buffer_t *buffer, size_t offset, size_t *len) {
     if (offset >= buffer->size) {
         *len = 0;
@@ -442,7 +457,8 @@ void rapido_peek_range(rapido_range_list_t *list, uint64_t *low, uint64_t *high)
     }
 }
 
-/** Removes ranges below or equal to the given value. */
+/** Removes ranges below or equal to the given value. Returns the largest value within a range removed, -1 if no range was removed
+ */
 uint64_t rapido_trim_range(rapido_range_list_t *list, uint64_t limit) {
     uint64_t offset = -1;
     for (int i = 0; i < list->size; i++) {
@@ -470,28 +486,30 @@ void rapido_range_buffer_init(rapido_range_buffer_t *receive, size_t capacity) {
 /** Copies a given memory zone to a given offset in the buffer. */
 int rapido_range_buffer_write(rapido_range_buffer_t *receive, size_t offset, void *input, size_t len) {
     assert(offset >= receive->read_offset);
-    size_t write_offset = offset - receive->read_offset;
-    while (write_offset + len > receive->buffer.capacity) { // TODO: Find the right coeff instead
-        size_t new_cap = receive->buffer.capacity * 2;
+    size_t write_offset = offset - receive->read_offset; // Converts the external ever-increasing offset into the buffer offset.
+    while (write_offset + len > receive->buffer.capacity) {
+        size_t new_cap = receive->buffer.capacity * 2; // TODO: Find the right coeff instead
         receive->buffer.data = reallocarray(receive->buffer.data, new_cap, 1);
         assert(receive->buffer.data);
-        size_t wrap_offset = receive->buffer.capacity - receive->buffer.offset;
-        memcpy(receive->buffer.data + receive->buffer.capacity, receive->buffer.data + wrap_offset,
-               receive->buffer.capacity - wrap_offset);
+        size_t wrap_len = receive->buffer.capacity - receive->buffer.offset; // The length after which the space left wraps around
+                                                                             // the end of the buffer.
+        memcpy(receive->buffer.data + receive->buffer.capacity, receive->buffer.data + wrap_len,
+               receive->buffer.capacity - wrap_len); // Always copies what is before the offset to the back of the buffer without
+                                                     // discerning whether it is actually used, for simplicity.
         receive->buffer.capacity = new_cap;
     }
-    size_t real_offset = (receive->buffer.offset + write_offset) % receive->buffer.capacity;
-    size_t wrap_offset = receive->buffer.capacity - real_offset;
-    memcpy(receive->buffer.data + real_offset, input, min(len, wrap_offset));
-    if (wrap_offset < len) {
-        memcpy(receive->buffer.data, input + wrap_offset, len - wrap_offset);
+    size_t real_offset = (receive->buffer.offset + write_offset) % receive->buffer.capacity; // The wrapped write_offset.
+    size_t wrap_len = receive->buffer.capacity - real_offset; // The amount of space from the real_offset before the buffer wraps.
+    memcpy(receive->buffer.data + real_offset, input, min(len, wrap_len));
+    if (wrap_len < len) { // Copies what remains in the wrapped part of the buffer, if any.
+        memcpy(receive->buffer.data, input + wrap_len, len - wrap_len);
     }
 
     rapido_add_range(&receive->ranges, offset, offset + len);
     return 0;
 }
 
-/** Returns a pointer to a memory zone at the start of the buffer of atmost *len bytes.
+/** Returns a pointer to a memory zone at the start of the buffer of at most *len bytes.
  * The zone is released from the buffer.*/
 void *rapido_range_buffer_get(rapido_range_buffer_t *receive, size_t *len) {
     size_t limit = max(*len, receive->read_offset + *len);
@@ -1140,7 +1158,7 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
     wants_to_send |= connection->send_buffer.size > connection->sent_offset;
     LOG if (wants_to_send) {
         reason = "Connection send buffer has data";
-    };
+    }
 
     rapido_array_iter(&session->connections, rapido_connection_t * connection, {
         if (connection->non_ack_eliciting_count >= DEFAULT_DELAYED_ACK_COUNT) {
@@ -1490,6 +1508,7 @@ int rapido_read_connection(rapido_t *session, rapido_connection_id_t connection_
                 ptls_free(connection->tls);
                 connection->tls = session->tls;
             }
+            assert(ptls_get_cipher(session->tls)->aead->iv_size >= 12);
             assert(setup_connection_crypto_context(session, connection) == 0);
         }
     }
@@ -1609,7 +1628,7 @@ int rapido_send_on_connection(rapido_t *session, rapido_connection_id_t connecti
                 record->ciphertext_len = sendbuf.off;
                 record->tls_record_sequence = ptls_get_traffic_protection(session->tls, 0)->seq - 1;
                 record->ack_eliciting = is_ack_eliciting;
-                record->send_time = get_usec_time();
+                record->sent_time = get_usec_time();
                 connection->encryption_ctx->seq = ptls_get_traffic_protection(session->tls, 0)->seq;
             } else {
                 break;
