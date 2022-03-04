@@ -176,6 +176,8 @@ int setup_connection_crypto_context(rapido_t *session, rapido_connection_t *conn
     if (connection->connection_id > 0) {
         connection->decryption_ctx->seq = 0;
     } else {
+        // Connection with connection ID 0, i.e. the first connection of the session, reuses the crypto materials
+        // from the session structure, as it does not need to derive a new IV or have its own sequence.
         ptls_aead_free(ctx_dec->aead);
     }
     return 0;
@@ -218,7 +220,8 @@ uint64_t get_usec_time() {
     return tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
 }
 
-/** Returns a pointer to element at index, ensuring element is not already used */
+/** Returns a pointer to element at index, ensuring element is not already used. The array grows if the index is currently not
+ * allocated to an array of maximum 2*index elements. */
 void *rapido_array_add(rapido_array_t *array, size_t index) {
     if (index >= array->capacity) {
         size_t new_capacity = max(index * 2, max(array->capacity * 2, 1));
@@ -229,6 +232,7 @@ void *rapido_array_add(rapido_array_t *array, size_t index) {
         }
         array->capacity = new_capacity;
     }
+    assert(array->data);
     assert(array->data[(1 + array->item_size) * index] == false);
     array->data[(1 + array->item_size) * index] = true;
     array->size++;
@@ -1663,6 +1667,8 @@ int rapido_send_on_connection(rapido_t *session, rapido_connection_id_t connecti
 
 int rapido_run_network(rapido_t *session, int timeout) {
     // TODO: Read and writes until it blocks
+#define has_low_occupancy(queue) ((queue).size < (queue).capacity / 2)
+    typedef enum { fd_listen_socket, fd_pending_connection, fd_connection } fd_types_t;
     QLOG(session, "api", "rapido_run_network", "", NULL);
     int no_fds = 0;
     bool fds_change;
@@ -1675,7 +1681,7 @@ int rapido_run_network(rapido_t *session, int timeout) {
         }
         struct pollfd fds[nfds];
         size_t connections_index[nfds];
-        enum { fd_listen_socket, fd_pending_connection, fd_connection } fd_types[nfds];
+        fd_types_t fd_types[nfds];
         nfds = 0;
         if (session->is_server) {
             rapido_array_iter(&session->server.listen_sockets, int *socket, {
@@ -1749,7 +1755,7 @@ int rapido_run_network(rapido_t *session, int timeout) {
                     }
                 }
             }
-        } while (polled_fds && wants_to_read && session->pending_notifications.size < session->pending_notifications.capacity / 2);
+        } while (polled_fds && wants_to_read && has_low_occupancy(session->pending_notifications));
 
         /* Write outgoing TLS records */
         current_time = get_usec_time();
@@ -1762,7 +1768,7 @@ int rapido_run_network(rapido_t *session, int timeout) {
                 break;
             }
         });
-        while (polled_fds && wants_to_write && session->pending_notifications.size < session->pending_notifications.capacity / 2) {
+        while (polled_fds && wants_to_write && has_low_occupancy(session->pending_notifications)) {
             wants_to_write = 0;
             for (int i = fd_offset; i < nfds; i++) {
                 if (fds[i].revents & POLLOUT) {
@@ -1774,7 +1780,7 @@ int rapido_run_network(rapido_t *session, int timeout) {
                 }
             }
         }
-    } while ((no_fds < 2 || fds_change) && session->pending_notifications.size < session->pending_notifications.capacity / 2);
+    } while ((no_fds < 2 || fds_change) && has_low_occupancy(session->pending_notifications));
     return 0;
 }
 
