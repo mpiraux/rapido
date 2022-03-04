@@ -145,6 +145,8 @@ int setup_connection_crypto_context(rapido_t *session, rapido_connection_t *conn
     if (connection->connection_id > 0) {
         connection->encryption_ctx->seq = 0;
     } else {
+        // Connection with connection ID 0, i.e. the first connection of the session, reuses the crypto materials
+        // from the session structure, as it does not need to derive a new IV or have its own sequence.
         ptls_aead_free(ctx_enc->aead);
     }
 
