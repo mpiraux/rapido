@@ -35,7 +35,8 @@ typedef struct {
     uint8_t *data;
 } rapido_array_t;
 
-#define rapido_array_iter(a, e, bl)                                                                                                \
+#define rapido_array_iter(a, i, e, bl)                                                                                             \
+\
     do {                                                                                                                           \
         for (int i = 0; i < (a)->capacity; i++) {                                                                                  \
             size_t offset = (1 + (a)->item_size) * i;                                                                              \

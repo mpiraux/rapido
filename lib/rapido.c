@@ -699,7 +699,7 @@ rapido_address_id_t rapido_add_remote_address(rapido_t *session, struct sockaddr
 }
 
 int rapido_remove_address(rapido_t *session, rapido_address_id_t local_address_id) {
-    rapido_array_iter(&session->connections, rapido_connection_t * connection, {
+    rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
         if (connection->local_address_id == local_address_id) {
             WARNING("Local address %d of connection %d is removed\n", local_address_id, connection->connection_id);
             // TODO: Migrate streams and RTX state for this connection
@@ -1022,7 +1022,7 @@ int rapido_process_new_session_id_frame(rapido_t *session, rapido_new_session_id
 
 int rapido_prepare_ack_frame(rapido_t *session, uint8_t *buf, size_t *len) {
     size_t consumed = 0;
-    rapido_array_iter(&session->connections, rapido_connection_t * connection, {
+    rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
         if (*len - consumed < 1 + sizeof(rapido_connection_id_t) + sizeof(uint64_t)) {
             break;
         }
@@ -1138,7 +1138,7 @@ int rapido_process_new_address_frame(rapido_t *session, rapido_new_address_frame
     address->ss_family = frame->family == 4 ? AF_INET : AF_INET6;
     memcpy(SOCKADDR_ADDR(address), frame->addr, frame->family == 4 ? 4 : 16);
     *SOCKADDR_PORT(address) = htons(frame->port);
-    rapido_array_iter(&session->connections, rapido_connection_t * connection, {
+    rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
         if (connection->socket != -1) {
             struct sockaddr_storage peer_address;
             socklen_t peer_address_len = sizeof(struct sockaddr_storage);
@@ -1169,7 +1169,7 @@ int rapido_connection_wants_to_send(rapido_t *session, rapido_connection_t *conn
         reason = "Connection send buffer has data";
     }
 
-    rapido_array_iter(&session->connections, rapido_connection_t * connection, {
+    rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
         if (connection->non_ack_eliciting_count >= DEFAULT_DELAYED_ACK_COUNT) {
             connection->require_ack = true;
             connection->non_ack_eliciting_count = 0;
@@ -1306,7 +1306,7 @@ int rapido_prepare_record(rapido_t *session, rapido_connection_t *connection, ui
     }
 
     if (SET_SIZE(session->addresses_advertised) < session->local_addresses.size) {
-        rapido_array_iter(&session->local_addresses, struct sockaddr_storage * address, {
+        rapido_array_iter(&session->local_addresses, i, struct sockaddr_storage * address, {
             rapido_address_id_t address_id = i;
             size_t frame_len = *len - consumed;
             rapido_prepare_new_address_frame(session, address_id, cleartext + consumed, &frame_len);
@@ -1411,7 +1411,7 @@ int rapido_server_handshake(rapido_t *session, size_t pending_connection_index) 
         /* ClientFinished */
         if (ptls_handshake_is_complete(connection->tls)) {
             int tls_session_id_sequence = -1;
-            rapido_array_iter(&session->tls_session_ids, uint8_t * tls_session_id, {
+            rapido_array_iter(&session->tls_session_ids, i, uint8_t * tls_session_id, {
                 if (memcmp(tls_session_id, connection->tls_session_id, TLS_SESSION_ID_LEN) == 0) {
                     tls_session_id_sequence = i;
                     break;
@@ -1436,7 +1436,7 @@ int rapido_server_handshake(rapido_t *session, size_t pending_connection_index) 
             struct sockaddr_storage peer_address;
             socklen_t peer_address_len = sizeof(struct sockaddr_storage);
             todo_perror(getpeername(new_connection->socket, (struct sockaddr *)&peer_address, &peer_address_len) == -1);
-            rapido_array_iter(&session->remote_addresses, struct sockaddr_storage * remote_address, {
+            rapido_array_iter(&session->remote_addresses, i, struct sockaddr_storage * remote_address, {
                 if (sockaddr_equal((struct sockaddr *)remote_address, (struct sockaddr *)&peer_address)) {
                     new_connection->remote_address_id = (rapido_address_id_t)i;
                 }
@@ -1686,14 +1686,14 @@ int rapido_run_network(rapido_t *session, int timeout) {
         fd_types_t fd_types[nfds];
         nfds = 0;
         if (session->is_server) {
-            rapido_array_iter(&session->server.listen_sockets, int *socket, {
+            rapido_array_iter(&session->server.listen_sockets, i, int *socket, {
                 fds[nfds].fd = *socket;
                 fds[nfds].events = POLLIN;
                 connections_index[nfds] = -1;
                 fd_types[nfds] = fd_listen_socket;
                 nfds++;
             });
-            rapido_array_iter(&session->server.pending_connections, rapido_pending_connection_t * connection, {
+            rapido_array_iter(&session->server.pending_connections, i, rapido_pending_connection_t * connection, {
                 fds[nfds].fd = connection->socket;
                 fds[nfds].events = POLLIN;
                 connections_index[nfds] = i;
@@ -1702,7 +1702,7 @@ int rapido_run_network(rapido_t *session, int timeout) {
             });
         }
         bool wants_to_write = false;
-        rapido_array_iter(&session->connections, rapido_connection_t * connection, {
+        rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
             fds[nfds].fd = connection->socket;
             fds[nfds].events = POLLIN;
             if (rapido_connection_wants_to_send(session, connection, current_time)) {
@@ -1761,7 +1761,7 @@ int rapido_run_network(rapido_t *session, int timeout) {
 
         /* Write outgoing TLS records */
         current_time = get_usec_time();
-        rapido_array_iter(&session->connections, rapido_connection_t * connection, {
+        rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
             if (rapido_connection_wants_to_send(session, connection, current_time)) {
                 if (!wants_to_write) {
                     fds_change = true;
@@ -1802,7 +1802,7 @@ int rapido_retransmit_connection(rapido_t *session, rapido_connection_id_t conne
 }
 
 int rapido_free(rapido_t *session) {
-    rapido_array_iter(&session->connections, rapido_connection_t * connection, {
+    rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
         if (connection->socket > -1) {
             close(connection->socket);
         }
@@ -1819,7 +1819,7 @@ int rapido_free(rapido_t *session) {
             ptls_free(connection->tls);
         }
     });
-    rapido_array_iter(&session->streams, rapido_stream_t * stream, {
+    rapido_array_iter(&session->streams, i, rapido_stream_t * stream, {
         rapido_range_buffer_free(&stream->read_buffer);
         rapido_buffer_free(&stream->send_buffer);
     });
@@ -1834,13 +1834,13 @@ int rapido_free(rapido_t *session) {
     rapido_array_free(&session->tls_session_ids);
     rapido_queue_free(&session->pending_notifications);
     if (session->is_server) {
-        rapido_array_iter(&session->server.listen_sockets, int *socket, {
+        rapido_array_iter(&session->server.listen_sockets, i, int *socket, {
             if (*socket > -1) {
                 close(*socket);
             }
         });
         rapido_array_free(&session->server.listen_sockets);
-        rapido_array_iter(&session->server.pending_connections, rapido_pending_connection_t * connection, {
+        rapido_array_iter(&session->server.pending_connections, i, rapido_pending_connection_t * connection, {
             if (connection->socket > -1) {
                 close(connection->socket);
             }
