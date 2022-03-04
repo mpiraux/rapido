@@ -476,12 +476,16 @@ typedef const struct st_ptls_cipher_suite_t {
     const char *name;
 } ptls_cipher_suite_t;
 
+/**
+ *  defines TLS protection material for a given epoch and direction. The direction (i.e. encryption or decryption) is implicit in
+ *  this structure.
+ */
 struct st_ptls_traffic_protection_t {
     uint8_t secret[PTLS_MAX_DIGEST_SIZE];
-    size_t epoch;
+    size_t epoch; // The epoch of the protection material which can be 1 (0-rtt), 2 (handshake) or 3 (1-rtt)
     /* the following fields are not used if the key_change callback is set */
-    ptls_aead_context_t *aead;
-    uint64_t seq;
+    ptls_aead_context_t *aead; // AEAD context for this epoch
+    uint64_t seq; // The next TLS sequence number
 };
 
 typedef struct st_ptls_message_emitter_t {
