@@ -409,7 +409,7 @@ void rapido_buffer_free(rapido_buffer_t *buffer) {
     memset(buffer, 0, sizeof(rapido_buffer_t));
 }
 
-/** Adds the given inclusive range to the list and merges overlapping ranges. */
+/** Adds the given non-inclusive range [low, high[ to the list and merges overlapping ranges. */
 int rapido_add_range(rapido_range_list_t *list, uint64_t low, uint64_t high) {
     assert(low < high);
     assert(list->size < RANGES_LEN);
