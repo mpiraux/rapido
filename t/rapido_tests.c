@@ -47,8 +47,8 @@ void test_local_address_server() {
     struct sockaddr_in a;
     struct sockaddr_in6 b;
     socklen_t len_a = sizeof(a), len_b = sizeof(b);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &b, &len_b, "localhost", "4443", AF_INET6, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&b, &len_b, "localhost", "4443", AF_INET6, SOCK_STREAM, IPPROTO_TCP) == 0);
     ok(len_a == sizeof(a) && len_b == sizeof(b));
     rapido_address_id_t id_a = rapido_add_address(s, (struct sockaddr *)&a, len_a);
     rapido_address_id_t id_b = rapido_add_address(s, (struct sockaddr *)&b, len_b);
@@ -69,8 +69,8 @@ void test_simple_stream_transfer() {
     rapido_session_t *server = rapido_new_session(ctx, true, "localhost", stderr);
     struct sockaddr_in a, b;
     socklen_t len_a = sizeof(a), len_b = sizeof(b);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     rapido_address_id_t s_aid_a = rapido_add_address(server, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_b = rapido_add_address(client, (struct sockaddr *)&b, len_b);
     rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
@@ -159,19 +159,23 @@ void test_simple_stream_transfer() {
     size_t stream_frame_len1 = sizeof(stream_frame_buf1);
     uint8_t stream_frame_buf2[35];
     size_t stream_frame_len2 = sizeof(stream_frame_buf2);
-    ok(rapido_prepare_stream_frame(client, rapido_array_get(&client->streams, second_stream_id), stream_frame_buf1, &stream_frame_len1) == 0);
-    ok(rapido_prepare_stream_frame(client, rapido_array_get(&client->streams, second_stream_id), stream_frame_buf2, &stream_frame_len2) == 0);
+    ok(rapido_prepare_stream_frame(client, rapido_array_get(&client->streams, second_stream_id), stream_frame_buf1,
+                                   &stream_frame_len1) == 0);
+    ok(rapido_prepare_stream_frame(client, rapido_array_get(&client->streams, second_stream_id), stream_frame_buf2,
+                                   &stream_frame_len2) == 0);
     ok(stream_frame_len1 <= sizeof(stream_frame_buf1));
     ok(stream_frame_len2 <= sizeof(stream_frame_buf2));
     ok(stream_frame_len1 > 0 && stream_frame_len2 > 0);
     uint8_t ciphertext[100];
-    ptls_buffer_t sendbuf = { 0 };
+    ptls_buffer_t sendbuf = {0};
     ptls_buffer_init(&sendbuf, ciphertext, sizeof(ciphertext));
     assert(ptls_send(client->tls, &sendbuf, stream_frame_buf2, stream_frame_len2) == 0);
-    assert(send(((rapido_connection_t *)rapido_array_get(&client->connections, c_cid))->socket, sendbuf.base, sendbuf.off, 0) == sendbuf.off);
+    assert(send(((rapido_connection_t *)rapido_array_get(&client->connections, c_cid))->socket, sendbuf.base, sendbuf.off, 0) ==
+           sendbuf.off);
     ptls_buffer_init(&sendbuf, ciphertext, sizeof(ciphertext));
     assert(ptls_send(client->tls, &sendbuf, stream_frame_buf1, stream_frame_len1) == 0);
-    assert(send(((rapido_connection_t *)rapido_array_get(&client->connections, c_cid))->socket, sendbuf.base, sendbuf.off, 0) == sendbuf.off);
+    assert(send(((rapido_connection_t *)rapido_array_get(&client->connections, c_cid))->socket, sendbuf.base, sendbuf.off, 0) ==
+           sendbuf.off);
     rapido_run_network(server, RUN_NETWORK_TIMEOUT_DEFAULT);
     ok(server->pending_notifications.size == 4);
     notification = rapido_queue_pop(&server->pending_notifications);
@@ -225,7 +229,7 @@ void test_large_transfer() {
     rapido_session_t *server = rapido_new_session(ctx, true, "localhost", stderr);
     struct sockaddr_in a;
     socklen_t len_a = sizeof(a);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     rapido_address_id_t s_aid_a = rapido_add_address(server, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_b = 0;
@@ -277,9 +281,9 @@ void test_join() {
     rapido_session_t *server = rapido_new_session(ctx, true, "localhost", stderr);
     struct sockaddr_in a, b, c;
     socklen_t len_a = sizeof(a), len_b = sizeof(b), len_c = sizeof(c);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &c, &len_c, "localhost", "14444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&c, &len_c, "localhost", "14444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     rapido_address_id_t s_aid_a = rapido_add_address(server, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_b = rapido_add_address(client, (struct sockaddr *)&b, len_b);
     rapido_address_id_t c_aid_c = rapido_add_address(client, (struct sockaddr *)&c, len_c);
@@ -319,7 +323,7 @@ void test_join() {
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
     size_t client_send_buf[2];
     size_t client_send_recs[2];
-    rapido_array_iter(&client->connections, rapido_connection_t *connection, {
+    rapido_array_iter(&client->connections, rapido_connection_t * connection, {
         client_send_buf[connection->connection_id] = connection->send_buffer.size;
         client_send_recs[connection->connection_id] = connection->sent_records.size;
     });
@@ -331,7 +335,8 @@ void test_join() {
     bool stream_closed = false;
     for (int i = 0; i < 63; i++) {
         notification = rapido_queue_pop(&server->pending_notifications);
-        ok(notification->notification_type == rapido_stream_has_data || (!stream_closed && notification->notification_type == rapido_stream_closed));
+        ok(notification->notification_type == rapido_stream_has_data ||
+           (!stream_closed && notification->notification_type == rapido_stream_closed));
         ok(notification->stream_id == stream_id);
         if (!stream_closed) {
             stream_closed = notification->notification_type == rapido_stream_closed;
@@ -339,14 +344,10 @@ void test_join() {
     }
     ok(stream_closed);
     ok(server->pending_notifications.size == 0);
-    rapido_array_iter(&server->connections, rapido_connection_t *connection, {
-        ok(!connection->require_ack);
-    });
+    rapido_array_iter(&server->connections, rapido_connection_t * connection, { ok(!connection->require_ack); });
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
-    rapido_array_iter(&client->connections, rapido_connection_t *connection, {
-        ok(!connection->require_ack);
-    });
-    rapido_array_iter(&client->connections, rapido_connection_t *connection, {
+    rapido_array_iter(&client->connections, rapido_connection_t * connection, { ok(!connection->require_ack); });
+    rapido_array_iter(&client->connections, rapido_connection_t * connection, {
         ok(connection->send_buffer.size < client_send_buf[connection->connection_id]);
         ok(connection->sent_records.size < client_send_recs[connection->connection_id]);
     });
@@ -377,7 +378,7 @@ void test_failover() {
     rapido_session_t *server = rapido_new_session(ctx, true, "localhost", stderr);
     struct sockaddr_in a, b, c;
     socklen_t len_a = sizeof(a), len_b = sizeof(b), len_c = sizeof(c);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     rapido_address_id_t s_aid_a = rapido_add_address(server, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_b = 0, c_aid_c = 1;
@@ -433,7 +434,8 @@ void test_failover() {
     bool stream_closed = false;
     for (int i = 0; i < 8; i++) {
         notification = rapido_queue_pop(&client->pending_notifications);
-        ok(notification->notification_type == rapido_stream_has_data || (!stream_closed && notification->notification_type == rapido_stream_closed));
+        ok(notification->notification_type == rapido_stream_has_data ||
+           (!stream_closed && notification->notification_type == rapido_stream_closed));
         ok(notification->stream_id == stream_id);
         if (!stream_closed) {
             stream_closed = notification->notification_type == rapido_stream_closed;
@@ -453,7 +455,7 @@ void test_multiple_streams() {
     rapido_session_t *server = rapido_new_session(ctx, true, "localhost", stderr);
     struct sockaddr_in a;
     socklen_t len_a = sizeof(a);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     rapido_address_id_t s_aid_a = rapido_add_address(server, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_b = 0;
@@ -476,7 +478,7 @@ void test_multiple_streams() {
         char buf[128];
         size_t data_len = snprintf(buf, sizeof(buf), "Hello stream %d", i * 2);
         ok(rapido_add_to_stream(client, streams[i], buf, data_len) == 0);
-        ok (rapido_attach_stream(client, streams[i], c_cid) == 0);
+        ok(rapido_attach_stream(client, streams[i], c_cid) == 0);
         ok(rapido_close_stream(client, streams[i]) == 0);
         rapido_run_network(client, RUN_NETWORK_TIMEOUT_SHORT);
     }
@@ -519,7 +521,7 @@ void test_large_buffers() {
     rapido_session_t *server = rapido_new_session(ctx, true, "localhost", NULL);
     struct sockaddr_in a;
     socklen_t len_a = sizeof(a);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     rapido_address_id_t s_aid_a = rapido_add_address(server, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_b = 0;
@@ -575,10 +577,10 @@ void test_multiple_server_addresses() {
     rapido_session_t *server = rapido_new_session(ctx, true, "localhost", stderr);
     struct sockaddr_storage a, b, c, d;
     socklen_t len_a = sizeof(a), len_b = sizeof(b), len_c = sizeof(c), len_d = sizeof(d);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &c, &len_c, "localhost", "4444", AF_INET6, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &d, &len_d, "localhost", "14444", AF_INET6, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&c, &len_c, "localhost", "4444", AF_INET6, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&d, &len_d, "localhost", "14444", AF_INET6, SOCK_STREAM, IPPROTO_TCP) == 0);
     rapido_address_id_t s_aid_a = rapido_add_address(server, (struct sockaddr *)&a, len_a);
     rapido_address_id_t s_aid_c = rapido_add_address(server, (struct sockaddr *)&c, len_c);
     rapido_address_id_t c_aid_b = rapido_add_address(client, (struct sockaddr *)&b, len_b);
@@ -623,7 +625,7 @@ void test_multiple_server_addresses() {
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
     size_t client_send_buf[2];
     size_t client_send_recs[2];
-    rapido_array_iter(&client->connections, rapido_connection_t *connection, {
+    rapido_array_iter(&client->connections, rapido_connection_t * connection, {
         client_send_buf[connection->connection_id] = connection->send_buffer.size;
         client_send_recs[connection->connection_id] = connection->sent_records.size;
     });
@@ -635,7 +637,8 @@ void test_multiple_server_addresses() {
     bool stream_closed = false;
     for (int i = 0; i < 63; i++) {
         notification = rapido_queue_pop(&server->pending_notifications);
-        ok(notification->notification_type == rapido_stream_has_data || (!stream_closed && notification->notification_type == rapido_stream_closed));
+        ok(notification->notification_type == rapido_stream_has_data ||
+           (!stream_closed && notification->notification_type == rapido_stream_closed));
         ok(notification->stream_id == stream_id);
         if (!stream_closed) {
             stream_closed = notification->notification_type == rapido_stream_closed;
@@ -643,14 +646,10 @@ void test_multiple_server_addresses() {
     }
     ok(stream_closed);
     ok(server->pending_notifications.size == 0);
-    rapido_array_iter(&server->connections, rapido_connection_t *connection, {
-        ok(!connection->require_ack);
-    });
+    rapido_array_iter(&server->connections, rapido_connection_t * connection, { ok(!connection->require_ack); });
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
-    rapido_array_iter(&client->connections, rapido_connection_t *connection, {
-        ok(!connection->require_ack);
-    });
-    rapido_array_iter(&client->connections, rapido_connection_t *connection, {
+    rapido_array_iter(&client->connections, rapido_connection_t * connection, { ok(!connection->require_ack); });
+    rapido_array_iter(&client->connections, rapido_connection_t * connection, {
         ok(connection->send_buffer.size < client_send_buf[connection->connection_id]);
         ok(connection->sent_records.size < client_send_recs[connection->connection_id]);
     });

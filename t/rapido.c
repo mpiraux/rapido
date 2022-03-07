@@ -14,8 +14,7 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define RUN_NETWORK_TIMEOUT 1000
 
-static void usage(const char *cmd)
-{
+static void usage(const char *cmd) {
     printf("Usage: %s [options] host port\n"
            "\n"
            "Options:\n"
@@ -30,31 +29,31 @@ static void usage(const char *cmd)
            "  -h                   prints this help\n"
            "\n"
            "Supported named groups: secp256r1"
-           #if PTLS_OPENSSL_HAVE_SECP384R1
+#if PTLS_OPENSSL_HAVE_SECP384R1
            ", secp384r1"
-           #endif
-           #if PTLS_OPENSSL_HAVE_SECP521R1
+#endif
+#if PTLS_OPENSSL_HAVE_SECP521R1
            ", secp521r1"
-           #endif
-           #if PTLS_OPENSSL_HAVE_X25519
+#endif
+#if PTLS_OPENSSL_HAVE_X25519
            ", X25519"
-           #endif
+#endif
            "\n"
            "Supported signature algorithms: rsa, secp256r1"
-           #if PTLS_OPENSSL_HAVE_SECP384R1
+#if PTLS_OPENSSL_HAVE_SECP384R1
            ", secp384r1"
-           #endif
-           #if PTLS_OPENSSL_HAVE_SECP521R1
+#endif
+#if PTLS_OPENSSL_HAVE_SECP521R1
            ", secp521r1"
-           #endif
-           #if PTLS_OPENSSL_HAVE_ED25519
+#endif
+#if PTLS_OPENSSL_HAVE_ED25519
            ", ed25519"
-           #endif
+#endif
            "\n\n",
            cmd);
 }
 
-static uint8_t random_data[16384 * 64] = { 42 };
+static uint8_t random_data[16384 * 64] = {42};
 
 static uint64_t get_time() {
     struct timespec tv;
@@ -62,7 +61,8 @@ static uint64_t get_time() {
     return tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
 }
 
-uint8_t *stream_produce_random_data(rapido_session_t *session, rapido_stream_id_t stream_id, void *producer_ctx, uint64_t offset, size_t *len) {
+uint8_t *stream_produce_random_data(rapido_session_t *session, rapido_stream_id_t stream_id, void *producer_ctx, uint64_t offset,
+                                    size_t *len) {
     *len = min(*len, sizeof(random_data));
     return random_data;
 }
@@ -101,12 +101,15 @@ void run_client(rapido_session_t *session, size_t data_to_receive) {
                 size_t read_len = UINT64_MAX;
                 rapido_read_stream(session, notification->stream_id, &read_len);
                 data_received += read_len;
-                rapido_queue_iter(&session->pending_notifications, notification, {});
+                rapido_queue_drain(&session->pending_notifications, notification, {});
             }
         }
     }
     uint64_t end_time = get_time();
-    printf("Received %lu bytes over %f seconds at %.02f Mbit/s\n", data_received, (end_time - start_time) / 1000000.0, (data_received * 8.0) / (end_time - start_time));
+    printf("Received %lu bytes over %f seconds at %.02f Mbit/s\n", data_received, (end_time - start_time) / 1000000.0,
+           (data_received * 8.0) / (end_time - start_time));
+    rapido_session_free(session);
+    free(session);
 }
 
 int main(int argc, char **argv) {
@@ -162,8 +165,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "-s must be an integer\n");
                 return 1;
             }
-        }
-            break;
+        } break;
         case 'y': {
             size_t i;
             for (i = 0; cipher_suites[i] != NULL; ++i)

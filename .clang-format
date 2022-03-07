@@ -2,6 +2,6 @@
 BasedOnStyle: "LLVM"
 IndentWidth: 4
 ColumnLimit: 132
-BreakBeforeBraces: Linux
+BreakBeforeBraces: Attach
 AllowShortFunctionsOnASingleLine: None
 SortIncludes: false

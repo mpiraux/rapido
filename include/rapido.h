@@ -11,16 +11,16 @@
 typedef uint32_t rapido_connection_id_t;
 typedef uint32_t rapido_stream_id_t;
 
-#define STREAM_IS_CLIENT(sid) (((sid) & 0x1) == 0)
-#define STREAM_IS_SERVER(sid) (((sid) & 0x1) == 1)
+#define CLIENT_STREAM(sid) (((sid)&0x1) == 0)
+#define SERVER_STREAM(sid) (((sid)&0x1) == 1)
 
 typedef uint8_t rapido_address_id_t;
 typedef uint64_t set_t;
 
 #define SET_LEN 64
-#define SET_HAS(bs, e) (bs & (1ull << ((uint64_t) e)))
-#define SET_ADD(bs, e) bs = (bs | (1ull << ((uint64_t) e)))
-#define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t) e))))
+#define SET_HAS(bs, e) (bs & (1ull << ((uint64_t)e)))
+#define SET_ADD(bs, e) bs = (bs | (1ull << ((uint64_t)e)))
+#define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t)e))))
 #define SET_SIZE(bs) __builtin_popcountll(bs)
 
 #define TLS_SESSION_ID_LEN 32
@@ -35,10 +35,10 @@ typedef struct {
     uint8_t *data;
 } rapido_array_t;
 
-#define rapido_array_iter(a, e, bl)                                                                                                \
+#define rapido_array_iter(a, i, e, bl)                                                                                             \
     do {                                                                                                                           \
         for (int i = 0; i < (a)->capacity; i++) {                                                                                  \
-            size_t offset = (1 + (a)->item_size) * i;                                                                               \
+            size_t offset = (1 + (a)->item_size) * i;                                                                              \
             if ((a)->data[offset] == true) {                                                                                       \
                 e = (void *)(a)->data + offset + 1;                                                                                \
                 bl                                                                                                                 \
@@ -97,19 +97,20 @@ typedef struct {
 
 void *rapido_queue_pop(rapido_queue_t *queue);
 
-#define rapido_queue_iter(q, e, bl)                                                                                                \
+#define rapido_queue_drain(q, e, bl)                                                                                               \
     do {                                                                                                                           \
-        while ((q)->size) {                                                                                                          \
+        while ((q)->size) {                                                                                                        \
             e = rapido_queue_pop(q);                                                                                               \
             bl                                                                                                                     \
         }                                                                                                                          \
     } while (0)
 
 typedef struct {
-    uint64_t tls_record_sequence;
-    size_t ciphertext_len;
-    bool ack_eliciting;  // Also implies 'retransmittable'
-    uint64_t send_time;
+    uint64_t tls_record_sequence; // The TLS Record sequence number of this record
+    size_t ciphertext_len;        // The total length of the record as transmitted on the wire
+    bool ack_eliciting;           // Whether receiving this record is expected to trigger the sending of an ACK. It also
+                                  // implies that the sender of this record will retransmit the frames
+    uint64_t sent_time;           // The time at which the record was sent
 } rapido_record_metadata_t;
 
 typedef struct {
@@ -178,7 +179,8 @@ typedef struct {
 
     struct st_ptls_traffic_protection_t *encryption_ctx;
     struct st_ptls_traffic_protection_t *decryption_ctx;
-    struct st_ptls_traffic_protection_t *own_decryption_ctx;
+    struct st_ptls_traffic_protection_t *own_decryption_ctx; // Cryptographic material to decrypt the records we sent when
+                                                             // retransmitting
 
     rapido_buffer_t receive_buffer;
     bool receive_buffer_fragmented;
@@ -211,7 +213,7 @@ typedef struct {
     rapido_address_id_t local_address_id;
 } rapido_pending_connection_t;
 
-typedef uint8_t *(* rapido_stream_producer_t)(rapido_session_t *, rapido_stream_id_t, void *, uint64_t, size_t *);
+typedef uint8_t *(*rapido_stream_producer_t)(rapido_session_t *, rapido_stream_id_t, void *, uint64_t, size_t *);
 
 typedef struct {
     rapido_stream_id_t stream_id;
@@ -253,32 +255,56 @@ typedef struct {
     };
 } rapido_application_notification_t;
 
+/** Creates a new rapido server. */
 rapido_server_t *rapido_new_server(ptls_context_t *tls_ctx, const char *server_name, FILE *qlog_out);
+
+/** Adds a local address to the server. */
 rapido_address_id_t rapido_add_server_address(rapido_server_t *server, struct sockaddr* addr, socklen_t addr_len);
+/** Removes a local address from the server. */
 int rapido_remove_server_address(rapido_session_t *session, rapido_address_id_t local_address_id);
+/** Runs the server for some time. */
 int rapido_run_server_network(rapido_server_t *server, int timeout);
+/** Pops the next notification and gets the index of the corresponding session. */
 rapido_application_notification_t *rapido_next_server_notification(rapido_server_t *server, size_t *session_index);
 
+/** Creates a new rapido session. */
 rapido_session_t *rapido_new_session(ptls_context_t *tls_ctx, bool is_server, const char *server_name, FILE *qlog_out);
 
+/** Adds a local address to the session. */
 rapido_address_id_t rapido_add_address(rapido_session_t *session, struct sockaddr* addr, socklen_t addr_len);
+/** Adds a remote address to the session. */
 rapido_address_id_t rapido_add_remote_address(rapido_session_t *session, struct sockaddr* addr, socklen_t addr_len);
+/** Removes a local address from the session. */
 int rapido_remove_address(rapido_session_t *session, rapido_address_id_t local_address_id);
 
+/** Creates a new connection for the session with the given local and remote address. */
 rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8_t local_address_id, uint8_t remote_address_id);
+/** Runs the session for some time. */
 int rapido_run_network(rapido_session_t *session, int timeout);
+/** Marks the given set of connections as eligible for retransmitting the content of the given connection. */
 int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id_t connection_id, set_t connections);
+/** Gracefully closes the connection. */
 int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t connection_id);
 
+/** Add a new stream to the session. */
 rapido_stream_id_t rapido_open_stream(rapido_session_t *session);
+/** Marks the connection as eligible to send content of this stream. */
 int rapido_attach_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
+/** Removes the mark of elibility of this connection for sending the content of this stream. */
 int rapido_remove_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
+/** Adds the given data to the end of the stream. */
 int rapido_add_to_stream(rapido_session_t *session, rapido_stream_id_t stream_id, void *data, size_t len);
-int rapido_set_stream_producer(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_stream_producer_t producer, void *producer_ctx);
+/** Sets the given function and associated context as a data producer for this stream. */
+int rapido_set_stream_producer(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_stream_producer_t producer,
+                               void *producer_ctx);
+/** Returns a pointer to read at most the *len following bytes from this stream. */
 void *rapido_read_stream(rapido_session_t *session, rapido_stream_id_t stream_id, size_t *len);
+/** Marks the end of this stream. */
 int rapido_close_stream(rapido_session_t *session, rapido_stream_id_t stream_id);
 
+/** Deallocates the memory zones referenced in this session structure. */
 int rapido_session_free(rapido_session_t *session);
+/** Deallocates the memory zones referenced in this server structure. */
 int rapido_server_free(rapido_server_t *server);
 
 #endif
