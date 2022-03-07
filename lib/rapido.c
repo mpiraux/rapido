@@ -725,7 +725,7 @@ rapido_address_id_t rapido_add_address(rapido_session_t *session, struct sockadd
     rapido_address_id_t local_address_id = session->next_local_address_id++;
     memcpy(rapido_array_add(&session->local_addresses, local_address_id), local_address, local_address_len);
     if (session->is_server) { // TODO: Ipv6 dualstack compat mode ?
-        todo(rapido_add_listen_socket(&session->server.listen_sockets, local_address, local_address_id) == 0);
+        todo(rapido_add_listen_socket(&session->server.listen_sockets, local_address, local_address_id) != 0);
     }
     LOG {
         char a[INET6_ADDRSTRLEN];
@@ -839,6 +839,7 @@ rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8
 
     ptls_handshake_properties_t tls_properties = {0};
     tls_properties.additional_extensions = malloc(sizeof(ptls_raw_extension_t) * 2);
+    todo(tls_properties.additional_extensions == NULL);
     tls_properties.additional_extensions[0].type = TLS_RAPIDO_HELLO_EXT;
     tls_properties.additional_extensions[0].data = ptls_iovec_init(NULL, 0);
     tls_properties.additional_extensions[1].type = UINT16_MAX;
