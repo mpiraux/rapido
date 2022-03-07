@@ -322,7 +322,7 @@ void test_join() {
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
     size_t client_send_buf[2];
     size_t client_send_recs[2];
-    rapido_array_iter(&client->connections, rapido_connection_t * connection, {
+    rapido_array_iter(&client->connections, i, rapido_connection_t * connection, {
         client_send_buf[connection->connection_id] = connection->send_buffer.size;
         client_send_recs[connection->connection_id] = connection->sent_records.size;
     });
@@ -343,10 +343,10 @@ void test_join() {
     }
     ok(stream_closed);
     ok(server->pending_notifications.size == 0);
-    rapido_array_iter(&server->connections, rapido_connection_t * connection, { ok(!connection->require_ack); });
+    rapido_array_iter(&server->connections, i, rapido_connection_t * connection, { ok(!connection->require_ack); });
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
-    rapido_array_iter(&client->connections, rapido_connection_t * connection, { ok(!connection->require_ack); });
-    rapido_array_iter(&client->connections, rapido_connection_t * connection, {
+    rapido_array_iter(&client->connections, i, rapido_connection_t * connection, { ok(!connection->require_ack); });
+    rapido_array_iter(&client->connections, i, rapido_connection_t * connection, {
         ok(connection->send_buffer.size < client_send_buf[connection->connection_id]);
         ok(connection->sent_records.size < client_send_recs[connection->connection_id]);
     });
@@ -624,7 +624,7 @@ void test_multiple_server_addresses() {
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
     size_t client_send_buf[2];
     size_t client_send_recs[2];
-    rapido_array_iter(&client->connections, rapido_connection_t * connection, {
+    rapido_array_iter(&client->connections, i, rapido_connection_t * connection, {
         client_send_buf[connection->connection_id] = connection->send_buffer.size;
         client_send_recs[connection->connection_id] = connection->sent_records.size;
     });
@@ -645,10 +645,10 @@ void test_multiple_server_addresses() {
     }
     ok(stream_closed);
     ok(server->pending_notifications.size == 0);
-    rapido_array_iter(&server->connections, rapido_connection_t * connection, { ok(!connection->require_ack); });
+    rapido_array_iter(&server->connections, i, rapido_connection_t * connection, { ok(!connection->require_ack); });
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
-    rapido_array_iter(&client->connections, rapido_connection_t * connection, { ok(!connection->require_ack); });
-    rapido_array_iter(&client->connections, rapido_connection_t * connection, {
+    rapido_array_iter(&client->connections, i, rapido_connection_t * connection, { ok(!connection->require_ack); });
+    rapido_array_iter(&client->connections, i, rapido_connection_t * connection, {
         ok(connection->send_buffer.size < client_send_buf[connection->connection_id]);
         ok(connection->sent_records.size < client_send_recs[connection->connection_id]);
     });
