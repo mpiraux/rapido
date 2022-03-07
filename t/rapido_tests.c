@@ -16,9 +16,10 @@
 
 #define SESSION(server, index) ((rapido_session_t *)rapido_array_get(&(server)->sessions, (index)))
 
-uint8_t random_data[16384] = { 42 };
+uint8_t random_data[16384] = {42};
 
-uint8_t *stream_produce_random_data(rapido_session_t *session, rapido_stream_id_t stream_id, void *producer_ctx, uint64_t offset, size_t *len) {
+uint8_t *stream_produce_random_data(rapido_session_t *session, rapido_stream_id_t stream_id, void *producer_ctx, uint64_t offset,
+                                    size_t *len) {
     *len = min(*len, sizeof(random_data));
     return random_data;
 }
@@ -681,9 +682,9 @@ void test_server_new_session() {
     rapido_session_t *client = rapido_new_session(ctx, false, "localhost", stderr);
     struct sockaddr_in a, b, c;
     socklen_t len_a = sizeof(a), len_b = sizeof(b), len_c = sizeof(c);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &c, &len_c, "localhost", "14444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&c, &len_c, "localhost", "14444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     rapido_address_id_t s_aid_a = rapido_add_server_address(server, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_b = rapido_add_address(client, (struct sockaddr *)&b, len_b);
     rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
@@ -775,10 +776,10 @@ void test_server_addresses() {
     rapido_session_t *client2 = rapido_new_session(ctx, false, "localhost", stderr);
     struct sockaddr_in a, b, c, d;
     socklen_t len_a = sizeof(a), len_b = sizeof(b), len_c = sizeof(c), len_d = sizeof(d);
-    ok(resolve_address((struct sockaddr *) &a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &c, &len_c, "localhost", "14444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    ok(resolve_address((struct sockaddr *) &d, &len_d, "localhost", "4444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&c, &len_c, "localhost", "14444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
+    ok(resolve_address((struct sockaddr *)&d, &len_d, "localhost", "4444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
 
     rapido_address_id_t s_aid_a = rapido_add_server_address(server, (struct sockaddr *)&a, len_a);
     rapido_address_id_t c_aid_b = rapido_add_address(client, (struct sockaddr *)&b, len_b);
@@ -838,7 +839,8 @@ void test_server_addresses() {
     ok(notification && notification->notification_type == rapido_new_connection);
     notification = rapido_next_server_notification(server, &tmp_index2);
     ok(notification && notification->notification_type == rapido_new_connection);
-    ok((tmp_index1 == server_session_index && tmp_index2 == server_session2_index) || (tmp_index1 == server_session2_index && tmp_index2 == server_session_index));
+    ok((tmp_index1 == server_session_index && tmp_index2 == server_session2_index) ||
+       (tmp_index1 == server_session2_index && tmp_index2 == server_session_index));
 
     rapido_session_free(client);
     rapido_session_free(client2);

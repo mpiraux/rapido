@@ -41,7 +41,6 @@
                                                     : &((struct sockaddr_in6 *)(a))->sin6_port)
 #define SOCKADDR_LEN(a) (((struct sockaddr *)(a))->sa_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6))
 
-
 #define TLS_MAX_RECORD_SIZE 16384
 #define TLS_MAX_ENCRYPTED_RECORD_SIZE (TLS_MAX_RECORD_SIZE + 22)
 #define TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(l) ((l)-22)
@@ -649,33 +648,35 @@ int rapido_add_listen_socket(rapido_array_t *listen_sockets, struct sockaddr *lo
     memcpy(rapido_array_add(listen_sockets, local_address_id), &listen_fd, sizeof(listen_fd));
     int yes = 1;
     assert_perror(setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)));
-    //TODO Make it a poll struct rather
+    // TODO Make it a poll struct rather
     assert_perror(bind(listen_fd, local_address, SOCKADDR_LEN(local_address)));
     assert_perror(listen(listen_fd, SOMAXCONN));
     return 0;
 }
 
-rapido_address_id_t rapido_add_server_address(rapido_server_t *server, struct sockaddr* local_address, socklen_t local_address_len) {
+rapido_address_id_t rapido_add_server_address(rapido_server_t *server, struct sockaddr *local_address,
+                                              socklen_t local_address_len) {
     assert(local_address != NULL);
     assert(local_address_len == sizeof(struct sockaddr_in) || local_address_len == sizeof(struct sockaddr_in6));
     rapido_address_id_t local_address_id = server->next_local_address_id++;
     memcpy(rapido_array_add(&server->local_addresses, local_address_id), local_address, local_address_len);
     todo(rapido_add_listen_socket(&server->listen_sockets, local_address, local_address_id) != 0);
-    rapido_array_iter(&server->sessions, i, rapido_session_t *session, {
+    rapido_array_iter(&server->sessions, i, rapido_session_t * session, {
         local_address_id = session->next_local_address_id++;
         memcpy(rapido_array_add(&session->local_addresses, local_address_id), local_address, local_address_len);
     });
     LOG {
         char a[INET6_ADDRSTRLEN];
-        QLOG(server, "api", "rapido_add_server_address", "", "{\"local_address_id\": \"%d\", \"local_address\": \"%s:%d\"}", local_address_id,
-             inet_ntop(local_address->sa_family, SOCKADDR_ADDR(local_address), a, sizeof(a)), ntohs(*SOCKADDR_PORT(local_address)));
+        QLOG(server, "api", "rapido_add_server_address", "", "{\"local_address_id\": \"%d\", \"local_address\": \"%s:%d\"}",
+             local_address_id, inet_ntop(local_address->sa_family, SOCKADDR_ADDR(local_address), a, sizeof(a)),
+             ntohs(*SOCKADDR_PORT(local_address)));
     }
     return local_address_id;
 }
 
 rapido_application_notification_t *rapido_next_server_notification(rapido_server_t *server, size_t *session_index) {
     rapido_application_notification_t *notification = NULL;
-    rapido_array_iter(&server->sessions, i, rapido_session_t *session, {
+    rapido_array_iter(&server->sessions, i, rapido_session_t * session, {
         if (session->pending_notifications.size > 0) {
             notification = rapido_queue_pop(&session->pending_notifications);
             *session_index = i;
@@ -723,7 +724,7 @@ rapido_address_id_t rapido_add_address(rapido_session_t *session, struct sockadd
     assert(local_address_len == sizeof(struct sockaddr_in) || local_address_len == sizeof(struct sockaddr_in6));
     rapido_address_id_t local_address_id = session->next_local_address_id++;
     memcpy(rapido_array_add(&session->local_addresses, local_address_id), local_address, local_address_len);
-    if (session->is_server) {  // TODO: Ipv6 dualstack compat mode ?
+    if (session->is_server) { // TODO: Ipv6 dualstack compat mode ?
         todo(rapido_add_listen_socket(&session->server.listen_sockets, local_address, local_address_id) == 0);
     }
     LOG {
@@ -740,7 +741,8 @@ rapido_address_id_t rapido_add_address(rapido_session_t *session, struct sockadd
     return local_address_id;
 }
 
-rapido_address_id_t rapido_add_remote_address(rapido_session_t *session, struct sockaddr *remote_address, socklen_t remote_address_len) {
+rapido_address_id_t rapido_add_remote_address(rapido_session_t *session, struct sockaddr *remote_address,
+                                              socklen_t remote_address_len) {
     assert(remote_address != NULL);
     assert(remote_address_len == sizeof(struct sockaddr_in) || remote_address_len == sizeof(struct sockaddr_in6));
     rapido_address_id_t remote_address_id = session->next_remote_address_id++;
@@ -760,7 +762,7 @@ rapido_address_id_t rapido_add_remote_address(rapido_session_t *session, struct 
 }
 
 int rapido_remove_address(rapido_session_t *session, rapido_address_id_t local_address_id) {
-    rapido_array_iter(&session->connections, i, rapido_connection_t *connection, {
+    rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
         if (connection->local_address_id == local_address_id) {
             WARNING("Local address %d of connection %d is removed\n", local_address_id, connection->connection_id);
             // TODO: Migrate streams and RTX state for this connection
@@ -835,12 +837,13 @@ rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8
         ptls_set_server_name(connection->tls, ptls_get_server_name(session->tls), 0);
     }
 
-    ptls_handshake_properties_t tls_properties = { 0 };
+    ptls_handshake_properties_t tls_properties = {0};
     tls_properties.additional_extensions = malloc(sizeof(ptls_raw_extension_t) * 2);
     tls_properties.additional_extensions[0].type = TLS_RAPIDO_HELLO_EXT;
     tls_properties.additional_extensions[0].data = ptls_iovec_init(NULL, 0);
     tls_properties.additional_extensions[1].type = UINT16_MAX;
-    tls_properties.client.tls_session_id = ptls_iovec_init(rapido_array_get(&session->tls_session_ids, connection_id), TLS_SESSION_ID_LEN);
+    tls_properties.client.tls_session_id =
+        ptls_iovec_init(rapido_array_get(&session->tls_session_ids, connection_id), TLS_SESSION_ID_LEN);
     ret = ptls_handshake(connection->tls, &handshake_buffer, NULL, 0, &tls_properties);
 
     todo(ret != PTLS_ERROR_IN_PROGRESS);
@@ -1400,7 +1403,8 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
     return 0;
 }
 
-int rapido_server_add_new_connection(rapido_array_t *pending_connections, ptls_context_t *tls_ctx, ptls_t *tls, const char* server_name, int conn_fd, rapido_address_id_t local_address_id) {
+int rapido_server_add_new_connection(rapido_array_t *pending_connections, ptls_context_t *tls_ctx, ptls_t *tls,
+                                     const char *server_name, int conn_fd, rapido_address_id_t local_address_id) {
     rapido_pending_connection_t *pending_connection = rapido_array_push(pending_connections);
     memset(pending_connection, 0, sizeof(rapido_pending_connection_t));
     pending_connection->socket = conn_fd;
@@ -1424,8 +1428,10 @@ int rapido_session_accept_new_connection(rapido_session_t *session, int accept_f
     int conn_fd = accept(accept_fd, (struct sockaddr *)&remote_address, &remote_address_len);
     todo_perror(conn_fd == -1);
     todo_perror(fcntl(conn_fd, F_SETFL, O_NONBLOCK));
-    rapido_server_add_new_connection(&session->server.pending_connections, session->tls_ctx, session->tls, ptls_get_server_name(session->tls), conn_fd, local_address_id);
-    QLOG(session, "session", "rapido_session_accept_new_connection", "", "{\"accept_fd\": \"%d\", \"conn_fd\": \"%d\", \"local_address_id\": \"%d\"}", accept_fd, conn_fd, local_address_id);
+    rapido_server_add_new_connection(&session->server.pending_connections, session->tls_ctx, session->tls,
+                                     ptls_get_server_name(session->tls), conn_fd, local_address_id);
+    QLOG(session, "session", "rapido_session_accept_new_connection", "",
+         "{\"accept_fd\": \"%d\", \"conn_fd\": \"%d\", \"local_address_id\": \"%d\"}", accept_fd, conn_fd, local_address_id);
     return 0;
 }
 
@@ -1435,12 +1441,15 @@ int rapido_server_accept_new_connection(rapido_server_t *server, int accept_fd, 
     int conn_fd = accept(accept_fd, (struct sockaddr *)&remote_address, &remote_address_len);
     todo_perror(conn_fd == -1);
     todo_perror(fcntl(conn_fd, F_SETFL, O_NONBLOCK));
-    rapido_server_add_new_connection(&server->pending_connections, server->tls_ctx, NULL, server->server_name, conn_fd, local_address_id);
-    QLOG(server, "server", "rapido_server_accept_new_connection", "", "{\"accept_fd\": \"%d\", \"conn_fd\": \"%d\", \"local_address_id\": \"%d\"}", accept_fd, conn_fd, local_address_id);
+    rapido_server_add_new_connection(&server->pending_connections, server->tls_ctx, NULL, server->server_name, conn_fd,
+                                     local_address_id);
+    QLOG(server, "server", "rapido_server_accept_new_connection", "",
+         "{\"accept_fd\": \"%d\", \"conn_fd\": \"%d\", \"local_address_id\": \"%d\"}", accept_fd, conn_fd, local_address_id);
     return 0;
 }
 
-int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections, size_t pending_connection_index) {
+int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections,
+                            size_t pending_connection_index) {
     assert(server || session);
     rapido_pending_connection_t *connection = rapido_array_get(pending_connections, pending_connection_index);
     uint8_t recvbuf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
@@ -1487,8 +1496,10 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
         /* ClientFinished */
         if (ptls_handshake_is_complete(connection->tls)) {
             int tls_session_id_sequence = -1;
-            if (session == NULL) {  // Is the connection coming from the server or session socket ?
-                QLOG(server, "server", "connection_state_change", "", "{\"state\": \"received_cf\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}}", connection->socket, connection->local_address_id);
+            if (session == NULL) { // Is the connection coming from the server or session socket ?
+                QLOG(server, "server", "connection_state_change", "",
+                     "{\"state\": \"received_cf\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}}", connection->socket,
+                     connection->local_address_id);
                 rapido_array_iter(&server->sessions, i, session, {
                     rapido_array_iter(&session->tls_session_ids, j, uint8_t * tls_session_id, {
                         if (memcmp(tls_session_id, connection->tls_session_id, TLS_SESSION_ID_LEN) == 0) {
@@ -1502,7 +1513,9 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
                     session = NULL;
                 });
             } else {
-                QLOG(session, "session", "connection_state_change", "", "{\"state\": \"received_cf\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}}", connection->socket, connection->local_address_id);
+                QLOG(session, "session", "connection_state_change", "",
+                     "{\"state\": \"received_cf\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}}", connection->socket,
+                     connection->local_address_id);
                 rapido_array_iter(&session->tls_session_ids, i, uint8_t * tls_session_id, {
                     if (memcmp(tls_session_id, connection->tls_session_id, TLS_SESSION_ID_LEN) == 0) {
                         tls_session_id_sequence = i;
@@ -1515,9 +1528,10 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
                     session = rapido_array_push(&server->sessions);
                     rapido_session_init(session, server->tls_ctx, true, server->qlog.out);
                     session->tls = connection->tls;
-                    rapido_array_iter(&server->local_addresses, i, struct sockaddr* local_address, {
+                    rapido_array_iter(&server->local_addresses, i, struct sockaddr * local_address, {
                         rapido_address_id_t local_address_id = session->next_local_address_id++;
-                        memcpy(rapido_array_add(&session->local_addresses, local_address_id), local_address, SOCKADDR_LEN(local_address));
+                        memcpy(rapido_array_add(&session->local_addresses, local_address_id), local_address,
+                               SOCKADDR_LEN(local_address));
                     });
                     LOG {
                         char tls_session_id_str[TLS_SESSION_ID_LEN * 2 + 1];
@@ -1546,7 +1560,7 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
             bool remote_address_known = false;
             rapido_array_iter(&session->remote_addresses, i, struct sockaddr_storage * remote_address, {
                 if (sockaddr_equal((struct sockaddr *)remote_address, (struct sockaddr *)&peer_address)) {
-                    new_connection->remote_address_id = (rapido_address_id_t) i;
+                    new_connection->remote_address_id = (rapido_address_id_t)i;
                     remote_address_known = true;
                 }
             });
@@ -1558,7 +1572,11 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
                 memcpy(rapido_buffer_alloc(&new_connection->receive_buffer, &allocated, allocated), recvbuf + consumed, allocated);
             }
 
-            QLOG(session, "session", "connection_state_change", "", "{\"state\": \"ready\", \"socket\": \"%d\", \"local_address_id\": \"%d\", \"remote_address_id\": \"%d\", \"connection_id\": \"%d\"}}", new_connection->socket, new_connection->local_address_id, remote_address_known ? new_connection->remote_address_id : -1, new_connection->connection_id);
+            QLOG(session, "session", "connection_state_change", "",
+                 "{\"state\": \"ready\", \"socket\": \"%d\", \"local_address_id\": \"%d\", \"remote_address_id\": \"%d\", "
+                 "\"connection_id\": \"%d\"}}",
+                 new_connection->socket, new_connection->local_address_id,
+                 remote_address_known ? new_connection->remote_address_id : -1, new_connection->connection_id);
 
             rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
             notification->notification_type = rapido_new_connection;
@@ -1606,7 +1624,7 @@ int rapido_read_connection(rapido_session_t *session, rapido_connection_id_t con
         ptls_buffer_t handshake_buffer = {0};
         ptls_buffer_init(&handshake_buffer, "", 0);
         consumed = recvd;
-        ptls_handshake_properties_t tls_properties = { 0 };
+        ptls_handshake_properties_t tls_properties = {0};
         assert(tls_properties.additional_extensions == NULL);
         tls_properties.collect_extension = collect_rapido_extensions;
         tls_properties.collected_extensions = collected_rapido_extensions;
@@ -1629,7 +1647,8 @@ int rapido_read_connection(rapido_session_t *session, rapido_connection_id_t con
             }
             assert(ptls_get_cipher(session->tls)->aead->iv_size >= 12);
             todo(setup_connection_crypto_context(session, connection) != 0);
-            QLOG(session, "session", "connection_state_change", "", "{\"state\": \"sent_cf\", \"connection_id\": \"%d\"}}", connection->connection_id);
+            QLOG(session, "session", "connection_state_change", "", "{\"state\": \"sent_cf\", \"connection_id\": \"%d\"}}",
+                 connection->connection_id);
         }
         free(tls_properties.additional_extensions);
         tls_properties.additional_extensions = NULL;
@@ -1849,8 +1868,8 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
         /* Do the TLS handshake on pending connections */
         while (fd_offset < nfds && fd_types[fd_offset] == fd_pending_connection) {
             if (fds[fd_offset].revents & POLLIN) {
-                todo(rapido_server_handshake(NULL, session, &session->server.pending_connections, connections_index[fd_offset])
-                     != 0);
+                todo(rapido_server_handshake(NULL, session, &session->server.pending_connections, connections_index[fd_offset]) !=
+                     0);
                 fds_change = true;
                 polled_fds--;
             }
@@ -1902,60 +1921,61 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
 
 int rapido_run_server_network(rapido_server_t *server, int timeout) {
     int no_fds = 0;
-do {
-    uint64_t current_time = get_usec_time();
-    size_t nfds = server->listen_sockets.size + server->pending_connections.size;
-    struct pollfd fds[nfds];
-    size_t connections_index[nfds];
-    enum { fd_listen_socket, fd_pending_connection } fd_types[nfds];
-    nfds = 0;
-    rapido_array_iter(&server->listen_sockets, i, int *socket, {
-        fds[nfds].fd = *socket;
-        fds[nfds].events = POLLIN;
-        connections_index[nfds] = i;
-        fd_types[nfds] = fd_listen_socket;
-        nfds++;
-    });
-    rapido_array_iter(&server->pending_connections, i, rapido_pending_connection_t * connection, {
-        fds[nfds].fd = connection->socket;
-        fds[nfds].events = POLLIN;
-        connections_index[nfds] = i;
-        fd_types[nfds] = fd_pending_connection;
-        nfds++;
-    });
+    do {
+        uint64_t current_time = get_usec_time();
+        size_t nfds = server->listen_sockets.size + server->pending_connections.size;
+        struct pollfd fds[nfds];
+        size_t connections_index[nfds];
+        enum { fd_listen_socket, fd_pending_connection } fd_types[nfds];
+        nfds = 0;
+        rapido_array_iter(&server->listen_sockets, i, int *socket, {
+            fds[nfds].fd = *socket;
+            fds[nfds].events = POLLIN;
+            connections_index[nfds] = i;
+            fd_types[nfds] = fd_listen_socket;
+            nfds++;
+        });
+        rapido_array_iter(&server->pending_connections, i, rapido_pending_connection_t * connection, {
+            fds[nfds].fd = connection->socket;
+            fds[nfds].events = POLLIN;
+            connections_index[nfds] = i;
+            fd_types[nfds] = fd_pending_connection;
+            nfds++;
+        });
 
-    int polled_fds = poll(fds, nfds, no_fds > 0 ? timeout : 0);
-    assert(polled_fds >= 0 || errno == EINTR);
-    if (polled_fds == 0) {
-        no_fds++;
-    } else {
-        no_fds = 0;
-    }
-
-    size_t fd_offset = 0;
-    /* Accept new TCP connections and prepare the TLS handshake */
-    while (fd_offset < nfds && fd_types[fd_offset] == fd_listen_socket) {
-        if (fds[fd_offset].revents & POLLIN) {
-            assert(rapido_server_accept_new_connection(server, fds[fd_offset].fd, connections_index[fd_offset]) == 0);
-            polled_fds--;
+        int polled_fds = poll(fds, nfds, no_fds > 0 ? timeout : 0);
+        assert(polled_fds >= 0 || errno == EINTR);
+        if (polled_fds == 0) {
+            no_fds++;
+        } else {
+            no_fds = 0;
         }
-        fd_offset++;
-    }
 
-    /* Do the TLS handshake on pending connections */
-    while (fd_offset < nfds && fd_types[fd_offset] == fd_pending_connection) {
-        if (fds[fd_offset].revents & POLLIN) {
-            assert(rapido_server_handshake(server, NULL, &server->pending_connections, connections_index[fd_offset]) == 0);
-            polled_fds--;
+        size_t fd_offset = 0;
+        /* Accept new TCP connections and prepare the TLS handshake */
+        while (fd_offset < nfds && fd_types[fd_offset] == fd_listen_socket) {
+            if (fds[fd_offset].revents & POLLIN) {
+                assert(rapido_server_accept_new_connection(server, fds[fd_offset].fd, connections_index[fd_offset]) == 0);
+                polled_fds--;
+            }
+            fd_offset++;
         }
-        fd_offset++;
-    }
-} while (no_fds < 2);
+
+        /* Do the TLS handshake on pending connections */
+        while (fd_offset < nfds && fd_types[fd_offset] == fd_pending_connection) {
+            if (fds[fd_offset].revents & POLLIN) {
+                assert(rapido_server_handshake(server, NULL, &server->pending_connections, connections_index[fd_offset]) == 0);
+                polled_fds--;
+            }
+            fd_offset++;
+        }
+    } while (no_fds < 2);
     return 0;
 }
 
 int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id_t connection_id, set_t connections) {
-    QLOG(session, "api", "rapido_retransmit_connection", "", "{\"source_connection_id\": \"%d\", \"connections\": \"%lu\"}", connection_id, connections);
+    QLOG(session, "api", "rapido_retransmit_connection", "", "{\"source_connection_id\": \"%d\", \"connections\": \"%lu\"}",
+         connection_id, connections);
     rapido_connection_t *source_connection = rapido_array_get(&session->connections, connection_id);
     assert(source_connection != NULL);
     for (int i = 0; i < SET_LEN; i++) {
@@ -1973,9 +1993,7 @@ int rapido_server_free(rapido_server_t *server) {
         free(server->server_name);
         server->server_name = NULL;
     }
-    rapido_array_iter(&server->sessions, i, rapido_session_t *session, {
-        rapido_session_free(session);
-    });
+    rapido_array_iter(&server->sessions, i, rapido_session_t * session, { rapido_session_free(session); });
     rapido_array_free(&server->sessions);
     rapido_array_iter(&server->listen_sockets, i, int *socket, {
         if (*socket > -1) {
@@ -1983,7 +2001,7 @@ int rapido_server_free(rapido_server_t *server) {
         }
     });
     rapido_array_free(&server->listen_sockets);
-    rapido_array_iter(&server->pending_connections, i, rapido_pending_connection_t *connection, {
+    rapido_array_iter(&server->pending_connections, i, rapido_pending_connection_t * connection, {
         if (connection->socket > -1) {
             close(connection->socket);
         }
@@ -2030,7 +2048,7 @@ int rapido_session_free(rapido_session_t *session) {
             }
         });
         rapido_array_free(&session->server.listen_sockets);
-        rapido_array_iter(&session->server.pending_connections, i, rapido_pending_connection_t *connection,{
+        rapido_array_iter(&session->server.pending_connections, i, rapido_pending_connection_t * connection, {
             if (connection->tls_properties.additional_extensions) {
                 free(connection->tls_properties.additional_extensions);
             }

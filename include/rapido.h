@@ -125,7 +125,7 @@ typedef struct {
 
     rapido_array_t sessions;
 
-    bool is_server;   // For QLOG macros
+    bool is_server; // For QLOG macros
     struct {
         FILE *out;
         uint64_t reference_time;
@@ -259,7 +259,7 @@ typedef struct {
 rapido_server_t *rapido_new_server(ptls_context_t *tls_ctx, const char *server_name, FILE *qlog_out);
 
 /** Adds a local address to the server. */
-rapido_address_id_t rapido_add_server_address(rapido_server_t *server, struct sockaddr* addr, socklen_t addr_len);
+rapido_address_id_t rapido_add_server_address(rapido_server_t *server, struct sockaddr *addr, socklen_t addr_len);
 /** Removes a local address from the server. */
 int rapido_remove_server_address(rapido_session_t *session, rapido_address_id_t local_address_id);
 /** Runs the server for some time. */
@@ -271,9 +271,9 @@ rapido_application_notification_t *rapido_next_server_notification(rapido_server
 rapido_session_t *rapido_new_session(ptls_context_t *tls_ctx, bool is_server, const char *server_name, FILE *qlog_out);
 
 /** Adds a local address to the session. */
-rapido_address_id_t rapido_add_address(rapido_session_t *session, struct sockaddr* addr, socklen_t addr_len);
+rapido_address_id_t rapido_add_address(rapido_session_t *session, struct sockaddr *addr, socklen_t addr_len);
 /** Adds a remote address to the session. */
-rapido_address_id_t rapido_add_remote_address(rapido_session_t *session, struct sockaddr* addr, socklen_t addr_len);
+rapido_address_id_t rapido_add_remote_address(rapido_session_t *session, struct sockaddr *addr, socklen_t addr_len);
 /** Removes a local address from the session. */
 int rapido_remove_address(rapido_session_t *session, rapido_address_id_t local_address_id);
 
