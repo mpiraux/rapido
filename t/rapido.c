@@ -61,13 +61,13 @@ static uint64_t get_time() {
     return tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
 }
 
-uint8_t *stream_produce_random_data(rapido_t *session, rapido_stream_id_t stream_id, void *producer_ctx, uint64_t offset,
+uint8_t *stream_produce_random_data(rapido_session_t *session, rapido_stream_id_t stream_id, void *producer_ctx, uint64_t offset,
                                     size_t *len) {
     *len = min(*len, sizeof(random_data));
     return random_data;
 }
 
-void run_server(rapido_t *session) {
+void run_server(rapido_session_t *session) {
     bool connection_closed = false;
     while (!connection_closed) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
@@ -85,11 +85,9 @@ void run_server(rapido_t *session) {
             }
         }
     }
-    rapido_free(session);
-    free(session);
 }
 
-void run_client(rapido_t *session, size_t data_to_receive) {
+void run_client(rapido_session_t *session, size_t data_to_receive) {
     uint64_t start_time = get_time();
     uint64_t data_received = 0;
     while (data_received < data_to_receive) {
@@ -110,7 +108,7 @@ void run_client(rapido_t *session, size_t data_to_receive) {
     uint64_t end_time = get_time();
     printf("Received %lu bytes over %f seconds at %.02f Mbit/s\n", data_received, (end_time - start_time) / 1000000.0,
            (data_received * 8.0) / (end_time - start_time));
-    rapido_free(session);
+    rapido_session_free(session);
     free(session);
 }
 
@@ -229,7 +227,7 @@ int main(int argc, char **argv) {
 
     signal(SIGPIPE, SIG_IGN);
 
-    rapido_t *session = rapido_new(&ctx, is_server, hostname ? hostname : host, NULL);
+    rapido_session_t *session = rapido_new_session(&ctx, is_server, hostname ? hostname : host, NULL);
     if (is_server) {
         rapido_add_address(session, (struct sockaddr *)&sa, salen);
         run_server(session);
@@ -238,4 +236,6 @@ int main(int argc, char **argv) {
         rapido_create_connection(session, 0, ra_id);
         run_client(session, data_to_receive);
     }
+    rapido_session_free(session);
+    free(session);
 }
