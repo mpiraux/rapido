@@ -1,7 +1,43 @@
-picotls
+rapido
 ===
 
-[![Build Status](https://travis-ci.org/h2o/picotls.svg?branch=master)](https://travis-ci.org/h2o/picotls)
+rapido is a minimal implementation of TCPLS.
+
+Building rapido
+---
+
+If you have cloned rapido from git then ensure that you have initialised the submodules:
+```
+% git submodule update --init
+```
+
+Build using cmake:
+```
+% cmake .
+% make rapido
+% make check
+```
+
+Using the rapido command
+---
+
+Run the test server (at 127.0.0.1:8443):
+```
+% ./rapido -c /path/to/certificate.pem -k /path/to/private-key.pem  127.0.0.1 8443
+```
+
+Connect to the test server:
+```
+% ./rapido 127.0.0.1 8443
+```
+
+Other options are documented in the command:
+```
+% ./rapido -h
+```
+
+picotls
+===
 
 Picotls is a [TLS 1.3 (RFC 8446)](https://tools.ietf.org/html/rfc8446) protocol stack written in C, with the following features:
 * support for three crypto engines
