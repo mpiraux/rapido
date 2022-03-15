@@ -32,6 +32,7 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define todo(expr) assert(!(expr))
 #define todo_perror(errnum) assert_perror(errnum)
+#define todo_eerror(expr, errnum) {if(expr){fprintf(stderr,"Error %d\n", errnum);assert(!(expr));}}
 
 #define SOCKADDR_ADDR(a)                                                                                                           \
     (((struct sockaddr *)(a))->sa_family == AF_INET ? (void *)&((struct sockaddr_in *)(a))->sin_addr                               \
@@ -1630,7 +1631,7 @@ int rapido_read_connection(rapido_session_t *session, rapido_connection_id_t con
         tls_properties.collect_extension = collect_rapido_extensions;
         tls_properties.collected_extensions = collected_rapido_extensions;
         int ret = ptls_handshake(connection->tls, &handshake_buffer, recvbuf, &consumed, &tls_properties);
-        todo(ret != 0 && ret != PTLS_ERROR_IN_PROGRESS);
+        todo_eerror(ret != 0 && ret != PTLS_ERROR_IN_PROGRESS, ret);
         if (ret == 0) {
             bool has_rapido_hello = false;
             for (ptls_raw_extension_t *extension = tls_properties.additional_extensions;
