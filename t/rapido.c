@@ -108,8 +108,6 @@ void run_client(rapido_session_t *session, size_t data_to_receive) {
     uint64_t end_time = get_time();
     printf("Received %lu bytes over %f seconds at %.02f Mbit/s\n", data_received, (end_time - start_time) / 1000000.0,
            (data_received * 8.0) / (end_time - start_time));
-    rapido_session_free(session);
-    free(session);
 }
 
 int main(int argc, char **argv) {

@@ -709,7 +709,7 @@ void rapido_session_init(rapido_session_t *session, ptls_context_t *tls_ctx, boo
 }
 
 rapido_session_t *rapido_new_session(ptls_context_t *tls_ctx, bool is_server, const char *server_name, FILE *qlog_out) {
-    rapido_session_t *session = malloc(sizeof(rapido_session_t));
+    rapido_session_t *session = calloc(1, sizeof(rapido_session_t));
     todo(session == NULL);
     rapido_session_init(session, tls_ctx, is_server, qlog_out);
 
