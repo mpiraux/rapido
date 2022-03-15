@@ -1,0 +1,31 @@
+name: Throughput test
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup submodules
+        run: git submodule update --init
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake openssl libssl-dev
+          echo install Test::TCP | sudo perl -MCPAN -
+          echo install Scope::Guard | sudo perl -MCPAN -
+      - name: Build rapido
+        run: |
+          cmake .
+          make
+      - name: Run test
+        run: |
+            $GITHUB_WORKSPACE/rapido -c $GITHUB_WORKSPACE/t/assets/rsa/cert.pem -k $GITHUB_WORKSPACE/t/assets/rsa/key.pem localhost 4443 &
+            sleep 2
+            result=$($GITHUB_WORKSPACE/rapido localhost 4443 | grep -oP "\d*.\d* Mbit/s" | sed 's; Mbit/s;Mbits;g')
+            echo "RESULT-goodput $result"
+
+
