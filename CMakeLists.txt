@@ -67,6 +67,9 @@ ENDIF ()
 ADD_LIBRARY(picotls-core ${CORE_FILES})
 TARGET_LINK_LIBRARIES(picotls-core ${CORE_EXTRA_LIBS})
 
+ADD_LIBRARY(picotls-rapido lib/rapido.c)
+TARGET_LINK_LIBRARIES(picotls-rapido)
+
 ADD_LIBRARY(picotls-minicrypto
     ${MINICRYPTO_LIBRARY_FILES}
     lib/cifra.c
