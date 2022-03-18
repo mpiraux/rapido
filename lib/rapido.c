@@ -1783,7 +1783,7 @@ int rapido_send_on_connection(rapido_session_t *session, rapido_connection_id_t 
     size_t send_len = 16 * TLS_MAX_ENCRYPTED_RECORD_SIZE;
     void *send_data = rapido_buffer_peek(&connection->send_buffer, connection->sent_offset, &send_len);
     if (send_len > 0) {
-        ssize_t sent_len = send(connection->socket, send_data, send_len, 0);
+        ssize_t sent_len = send(connection->socket, send_data, send_len, MSG_NOSIGNAL);
         if (sent_len == -1 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EPIPE)) {
             wants_to_write = 0;
             sent_len = 0;
