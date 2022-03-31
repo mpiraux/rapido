@@ -60,15 +60,19 @@ static uint8_t random_data[16384];
         for (int i = 0; i < len;) {                                                                                                \
             fprintf(stderr, "%04x:  ", (int)i);                                                                                    \
                                                                                                                                    \
-            for (int j = 0; j < 16 && i < len; j++) {                                                                              \
-                fprintf(stderr, "%02x ", ((uint8_t *)src)[i + j]);                                                                 \
+            for (int j = 0; j < 16; j++) {                                                                                         \
+                if (j + i < len) {                                                                                                 \
+                    fprintf(stderr, "%02x ", ((uint8_t *)src)[i + j]);                                                             \
+                } else {                                                                                                           \
+                    fprintf(stderr, "   ");                                                                                        \
+                }                                                                                                                  \
             }                                                                                                                      \
             fprintf(stderr, "\t");                                                                                                 \
             for (int j = 0; j < 16 && i < len; j++, i++) {                                                                         \
-                if (32 <= ((uint8_t *)src)[i] && ((uint8_t *)src)[i] > 127) {                                                      \
+                if (32 <= ((uint8_t *)src)[i] && ((uint8_t *)src)[i] < 127) {                                                      \
                     fprintf(stderr, "%c", ((uint8_t *)src)[i]);                                                                    \
                 } else {                                                                                                           \
-                    fprintf(stderr, " ");                                                                                          \
+                    fprintf(stderr, ".");                                                                                          \
                 }                                                                                                                  \
             }                                                                                                                      \
             fprintf(stderr, "\n");                                                                                                 \
@@ -302,6 +306,15 @@ void *rapido_queue_push(rapido_queue_t *queue) {
     assert(queue->size < queue->capacity);
     size_t item_index = queue->back_index;
     queue->back_index = (queue->back_index + 1) % queue->capacity;
+    queue->size++;
+    return queue->data + (item_index * queue->item_size);
+}
+
+/** Returns a pointer to a new element pushed at the front of the queue */
+void *rapido_queue_push_front(rapido_queue_t *queue) {
+    assert(queue->size < queue->capacity);
+    size_t item_index = (queue->front_index - 1) % queue->capacity;
+    queue->front_index = item_index;
     queue->size++;
     return queue->data + (item_index * queue->item_size);
 }
@@ -567,7 +580,7 @@ static const rapido_frame_type_t stream_frame_type = 0x2;
 static const rapido_frame_type_t ack_frame_type = 0x3;
 static const rapido_frame_type_t new_session_id_frame_type = 0x4;
 static const rapido_frame_type_t new_address_frame_type = 0x5;
-static const rapido_frame_type_t connection_failed_frame_type = 0x6;
+static const rapido_frame_type_t connection_reset_frame_type = 0x6;
 static const rapido_frame_type_t ebpf_code_frame_type = 0x7;
 
 typedef struct {
@@ -597,8 +610,7 @@ typedef struct {
 
 typedef struct {
     rapido_connection_id_t connection_id;
-    uint32_t sequence;
-} rapido_connection_failed_frame_t;
+} rapido_connection_reset_frame_t;
 
 typedef struct {
     uint8_t *data;
@@ -606,6 +618,13 @@ typedef struct {
     size_t offset;
     rapido_connection_id_t connection_id;
 } rapido_ebpf_code_frame_t;
+
+typedef struct {
+    rapido_frame_type_t type;
+    union {
+        rapido_connection_reset_frame_t conn_reset_frame;
+    };
+} rapido_queued_frame_t;
 
 int rapido_frame_is_ack_eliciting(rapido_frame_type_t frame_id) {
     return frame_id != padding_frame_type && frame_id != ack_frame_type;
@@ -617,6 +636,7 @@ void rapido_connection_init(rapido_session_t *session, rapido_connection_t *conn
     rapido_buffer_init(&connection->receive_buffer, 32 * TLS_MAX_RECORD_SIZE);
     rapido_buffer_init(&connection->send_buffer, 32 * TLS_MAX_RECORD_SIZE);
     rapido_queue_init(&connection->sent_records, sizeof(rapido_record_metadata_t), 512);
+    rapido_queue_init(&connection->frame_queue, sizeof(rapido_queued_frame_t), 32);
 }
 
 void rapido_connection_close(rapido_session_t *session, rapido_connection_t *connection) {
@@ -1221,6 +1241,44 @@ int rapido_process_new_address_frame(rapido_session_t *session, rapido_new_addre
     return 0;
 }
 
+int rapido_prepare_connection_reset_frame(rapido_session_t *session, rapido_connection_id_t connection_id, uint8_t *buf,
+                                          size_t *len) {
+    size_t consumed = 0;
+    if (*len < 1 + sizeof(rapido_connection_id_t)) {
+        goto Exit;
+    }
+
+    buf[consumed++] = connection_reset_frame_type;
+    *(uint32_t *)(buf + consumed) = htonl(connection_id);
+    consumed += sizeof(uint32_t);
+
+    QLOG(session, "frames", "rapido_prepare_connection_reset_frame", "", "{\"connection_id\": \"%d\"}", connection_id);
+Exit:
+    *len = consumed;
+    return 0;
+}
+
+int rapido_decode_connection_reset_frame(rapido_session_t *session, uint8_t *buf, size_t *len,
+                                         rapido_connection_reset_frame_t *frame) {
+    assert(*len >= sizeof(rapido_frame_type_t) + sizeof(rapido_connection_id_t));
+    size_t consumed = 1;
+    frame->connection_id = ntohl(*(uint32_t *) (buf + consumed));
+    consumed += sizeof(rapido_connection_id_t);
+    *len = consumed;
+    QLOG(session, "frames", "rapido_decode_connection_reset_frame", "", "{\"connection_id\": \"%d\"}", frame->connection_id);
+    return 0;
+}
+
+int rapido_process_connection_reset_frame(rapido_session_t *session, rapido_connection_reset_frame_t *frame) {
+    rapido_connection_t *connection = rapido_array_get(&session->connections, frame->connection_id);
+    assert(connection);
+    rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
+    notification->notification_type = rapido_connection_reset;
+    notification->connection_id = frame->connection_id;
+    rapido_connection_close(session, connection);
+    return 0;
+}
+
 int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection_t *connection, uint64_t current_time) {
     if (connection->socket == -1 || !ptls_handshake_is_complete(connection->tls) ||
         connection->sent_records.size == connection->sent_records.capacity) {
@@ -1232,6 +1290,11 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
     wants_to_send |= connection->send_buffer.size > connection->sent_offset;
     LOG if (wants_to_send) {
         reason = "Connection send buffer has data";
+    }
+
+    wants_to_send |= connection->frame_queue.size > 0;
+    LOG if (wants_to_send) {
+        reason = "Connection has queued frame";
     }
 
     rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
@@ -1322,6 +1385,8 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
                 rapido_queue_drain(&source_connection->sent_records, rapido_record_metadata_t * record, {
                     if (record->ack_eliciting) {
                         if (consumed + TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(record->ciphertext_len) > *len) {
+                            memmove(rapido_queue_push_front(&source_connection->sent_records), record,
+                                    sizeof(rapido_record_metadata_t));
                             break;
                         }
                         source_connection->own_decryption_ctx->seq = record->tls_record_sequence;
@@ -1355,6 +1420,28 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
                 });
             }
         }
+    }
+
+    if (connection->frame_queue.size) {
+        rapido_queue_drain(&connection->frame_queue, rapido_queued_frame_t * frame, {
+            size_t frame_length = *len - consumed;
+            switch (frame->type) {
+            case connection_reset_frame_type:
+                rapido_prepare_connection_reset_frame(session, frame->conn_reset_frame.connection_id, cleartext + consumed,
+                                                      &frame_length);
+                break;
+            default:
+                todo("Unsupported frame in the frame queue" != 0);
+            }
+            if (frame_length == 0) {
+                memmove(rapido_queue_push_front(&connection->frame_queue), frame, sizeof(rapido_queued_frame_t));
+                break;
+            }
+            consumed += frame_length;
+            if (consumed >= *len) {
+                break;
+            }
+        });
     }
 
     if (session->is_server) {
@@ -1613,6 +1700,17 @@ int rapido_read_connection(rapido_session_t *session, rapido_connection_id_t con
         wants_to_read = 0;
         rapido_buffer_trim_end(&connection->receive_buffer, recvbuf_max);
         rapido_connection_close(session, connection);
+        if (recvd == -1) {
+            rapido_array_iter(&session->connections, cid, rapido_connection_t * c, {
+                if (cid != connection_id) {
+                    rapido_queued_frame_t frame = { 0 };
+                    frame.type = connection_reset_frame_type;
+                    frame.conn_reset_frame.connection_id = connection_id;
+                    todo(c->frame_queue.size == c->frame_queue.capacity);
+                    memcpy(rapido_queue_push(&c->frame_queue), &frame, sizeof(rapido_queued_frame_t));
+                }
+            });
+        }
         return wants_to_read;
     } else if (recvd == -1) {
         recvd = 0;
@@ -1712,6 +1810,11 @@ int rapido_read_connection(rapido_session_t *session, rapido_connection_id_t con
                     rapido_new_address_frame_t frame;
                     assert(rapido_decode_new_address_frame(session, plaintext.base + offset, &len, &frame) == 0);
                     assert(rapido_process_new_address_frame(session, &frame) == 0);
+                } break;
+                case connection_reset_frame_type: {
+                    rapido_connection_reset_frame_t frame;
+                    assert(rapido_decode_connection_reset_frame(session, plaintext.base + offset, &len, &frame) == 0);
+                    assert(rapido_process_connection_reset_frame(session, &frame) == 0);
                 } break;
                 default:
                     WARNING("Unsupported frame type: %d\n", frame_type);
@@ -2020,6 +2123,7 @@ int rapido_session_free(rapido_session_t *session) {
         rapido_buffer_free(&connection->receive_buffer);
         rapido_buffer_free(&connection->send_buffer);
         rapido_queue_free(&connection->sent_records);
+        rapido_queue_free(&connection->frame_queue);
         ptls_aead_free(connection->encryption_ctx->aead);
         free(connection->encryption_ctx);
         ptls_aead_free(connection->decryption_ctx->aead);

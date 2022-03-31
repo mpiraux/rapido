@@ -176,6 +176,7 @@ typedef struct {
     rapido_address_id_t remote_address_id;
 
     set_t attached_streams;
+    rapido_queue_t frame_queue;
 
     struct st_ptls_traffic_protection_t *encryption_ctx;
     struct st_ptls_traffic_protection_t *decryption_ctx;
@@ -240,7 +241,7 @@ typedef struct {
 typedef struct {
     enum {
         rapido_new_connection,
-        rapido_connection_failed,
+        rapido_connection_reset,
         rapido_connection_closed,
         rapido_new_stream,
         rapido_stream_has_data,
