@@ -965,6 +965,9 @@ int ptls_buffer_push_asn1_ubigint(ptls_buffer_t *buf, const void *bignum, size_t
 static uint8_t *ptls_encode_quicint(uint8_t *p, uint64_t v);
 #define PTLS_ENCODE_QUICINT_CAPACITY 8
 
+#define PTLS_QUICINT_MAX 4611686018427387903 // (1 << 62) - 1
+#define PTLS_QUICINT_LONGEST_STR "4611686018427387903"
+
 #define ptls_buffer_pushv(buf, src, len)                                                                                           \
     do {                                                                                                                           \
         if ((ret = ptls_buffer__do_pushv((buf), (src), (len))) != 0)                                                               \
@@ -1394,10 +1397,6 @@ extern void (*volatile ptls_clear_memory)(void *p, size_t len);
  */
 extern int (*volatile ptls_mem_equal)(const void *x, const void *y, size_t len);
 /**
- *
- */
-static ptls_iovec_t ptls_iovec_init(const void *p, size_t len);
-/**
  * checks if a server name is an IP address.
  */
 int ptls_server_name_is_ipaddr(const char *name);
@@ -1427,7 +1426,7 @@ char *ptls_hexdump(char *dst, const void *src, size_t len);
  * the default get_time callback
  */
 extern ptls_get_time_t ptls_get_time;
-#if PICOTLS_USE_DTRACE
+#if defined(PICOTLS_USE_DTRACE) && PICOTLS_USE_DTRACE
 /**
  *
  */
@@ -1466,7 +1465,7 @@ inline void ptls_buffer_init(ptls_buffer_t *buf, void *smallbuf, size_t smallbuf
 inline void ptls_buffer_dispose(ptls_buffer_t *buf)
 {
     ptls_buffer__release_memory(buf);
-    *buf = (ptls_buffer_t){NULL};
+    *buf = (ptls_buffer_t){NULL, 0, 0, 0};
 }
 
 inline uint8_t *ptls_encode_quicint(uint8_t *p, uint64_t v)
