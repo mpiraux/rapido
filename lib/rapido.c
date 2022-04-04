@@ -633,6 +633,7 @@ int rapido_frame_is_ack_eliciting(rapido_frame_type_t frame_id) {
 void rapido_connection_init(rapido_session_t *session, rapido_connection_t *connection) {
     memset(connection, 0, sizeof(rapido_connection_t));
     connection->last_received_record_sequence = -1;
+    connection->socket = -1;
     rapido_buffer_init(&connection->receive_buffer, 32 * TLS_MAX_RECORD_SIZE);
     rapido_buffer_init(&connection->send_buffer, 32 * TLS_MAX_RECORD_SIZE);
     rapido_queue_init(&connection->sent_records, sizeof(rapido_record_metadata_t), 512);
@@ -1272,10 +1273,12 @@ int rapido_decode_connection_reset_frame(rapido_session_t *session, uint8_t *buf
 int rapido_process_connection_reset_frame(rapido_session_t *session, rapido_connection_reset_frame_t *frame) {
     rapido_connection_t *connection = rapido_array_get(&session->connections, frame->connection_id);
     assert(connection);
-    rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
-    notification->notification_type = rapido_connection_reset;
-    notification->connection_id = frame->connection_id;
-    rapido_connection_close(session, connection);
+    if (connection->socket != -1) {
+        rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
+        notification->notification_type = rapido_connection_reset;
+        notification->connection_id = frame->connection_id;
+        rapido_connection_close(session, connection);
+    }
     return 0;
 }
 
