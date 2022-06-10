@@ -303,6 +303,13 @@ void *rapido_read_stream(rapido_session_t *session, rapido_stream_id_t stream_id
 /** Marks the end of this stream. */
 int rapido_close_stream(rapido_session_t *session, rapido_stream_id_t stream_id);
 
+/** Processes data received by a client during the handshake */
+void rapido_client_process_handshake(rapido_session_t *session, rapido_connection_id_t connection_id, uint8_t *buffer, size_t *len);
+/** Processes incoming data received by either a server or after the handshake */
+void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len);
+/** Prepares data to send */
+void rapido_prepare_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len)
+
 /** Deallocates the memory zones referenced in this session structure. */
 int rapido_session_free(rapido_session_t *session);
 /** Deallocates the memory zones referenced in this server structure. */

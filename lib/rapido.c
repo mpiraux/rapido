@@ -1686,6 +1686,126 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
     return 0;
 }
 
+void rapido_client_process_handshake(rapido_session_t *session, rapido_connection_id_t connection_id, uint8_t *buffer, size_t *len) {
+    assert(!session->is_server);
+    rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
+    ptls_buffer_t handshake_buffer = {0};
+    ptls_buffer_init(&handshake_buffer, "", 0);
+    ptls_handshake_properties_t tls_properties = {0};
+    assert(tls_properties.additional_extensions == NULL);
+    tls_properties.collect_extension = collect_rapido_extensions;
+    tls_properties.collected_extensions = collected_rapido_extensions;
+    int ret = ptls_handshake(connection->tls, &handshake_buffer, buffer, len, &tls_properties);
+    todo_eerror(ret != 0 && ret != PTLS_ERROR_IN_PROGRESS, ret);
+    if (ret == 0) {
+        bool has_rapido_hello = false;
+        for (ptls_raw_extension_t *extension = tls_properties.additional_extensions;
+                extension->type != UINT16_MAX && !has_rapido_hello; extension++) {
+            if (extension->type == TLS_RAPIDO_HELLO_EXT) {
+                has_rapido_hello = true;
+            }
+        }
+        assert(has_rapido_hello || ptls_handshake_is_complete(session->tls));
+        todo(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) != handshake_buffer.off);
+        ptls_buffer_dispose(&handshake_buffer);
+        if (connection->tls != session->tls) {
+            ptls_free(connection->tls);
+            connection->tls = session->tls;
+        }
+        assert(ptls_get_cipher(session->tls)->aead->iv_size >= 12);
+        todo(setup_connection_crypto_context(session, connection) != 0);
+        QLOG(session, "session", "connection_state_change", "", "{\"state\": \"sent_cf\", \"connection_id\": \"%d\"}}",
+                connection->connection_id);
+    }
+    free(tls_properties.additional_extensions);
+    tls_properties.additional_extensions = NULL;
+}
+
+void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len) {
+    rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
+    ptls_set_traffic_protection(session->tls, connection->decryption_ctx, 1);
+    size_t processed = 0;
+    size_t recvd = *len;
+    while (processed < recvd) {
+        size_t record_missing_len = 0;
+        bool is_record_complete = is_tls_record_complete(buffer + processed, recvd - processed, &record_missing_len);
+        if (!is_record_complete) {
+            size_t additional_len = record_missing_len;
+            uint8_t *additional_data = rapido_buffer_peek(&connection->receive_buffer, recvd, &additional_len);
+            if (additional_len != record_missing_len) {
+                *len = processed;
+                connection->receive_buffer_fragmented = true;
+                break;
+            }
+            connection->receive_buffer_fragmented = false;
+        }
+
+        uint8_t plaintext_buf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
+        ptls_buffer_t plaintext = {0};
+        ptls_buffer_init(&plaintext, plaintext_buf, sizeof(plaintext_buf));
+        *len = recvd - processed;
+        int ret = ptls_receive(session->tls, &plaintext, buffer + processed, len);
+        processed += *len;
+        if (ret != 0) {
+            printf("ret: %d\n", ret);
+        }
+        todo(ret != 0);
+        if (plaintext.off > 0) {
+            QLOG(session, "transport", "receive_record", "",
+                    "{\"connection_id\": \"%u\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}", connection_id,
+                    ptls_get_traffic_protection(session->tls, 1)->seq - 1, *len);
+        }
+        bool is_ack_eliciting = false;
+        for (size_t processed = 0; processed < plaintext.off;) {
+            rapido_frame_type_t frame_type = plaintext.base[processed];
+            size_t len = plaintext.off - processed;
+            is_ack_eliciting |= rapido_frame_is_ack_eliciting(frame_type);
+            switch (frame_type) {
+            case stream_frame_type: {
+                rapido_stream_frame_t frame;
+                assert(rapido_decode_stream_frame(session, plaintext.base + processed, &len, &frame) == 0);
+                assert(rapido_process_stream_frame(session, &frame) == 0);
+            } break;
+            case ack_frame_type: {
+                rapido_ack_frame_t frame;
+                assert(rapido_decode_ack_frame(session, plaintext.base + processed, &len, &frame) == 0);
+                assert(rapido_process_ack_frame(session, &frame) == 0);
+            } break;
+            case new_session_id_frame_type: {
+                rapido_new_session_id_frame_t frame;
+                assert(rapido_decode_new_session_id_frame(session, plaintext.base + processed, &len, &frame) == 0);
+                assert(rapido_process_new_session_id_frame(session, &frame) == 0);
+            } break;
+            case new_address_frame_type: {
+                rapido_new_address_frame_t frame;
+                assert(rapido_decode_new_address_frame(session, plaintext.base + processed, &len, &frame) == 0);
+                assert(rapido_process_new_address_frame(session, &frame) == 0);
+            } break;
+            case connection_reset_frame_type: {
+                rapido_connection_reset_frame_t frame;
+                assert(rapido_decode_connection_reset_frame(session, plaintext.base + processed, &len, &frame) == 0);
+                assert(rapido_process_connection_reset_frame(session, &frame) == 0);
+            } break;
+            default:
+                WARNING("Unsupported frame type: %d\n", frame_type);
+                assert(!"Unsupported frame type");
+                processed = plaintext.off;
+                break;
+            }
+            processed += len;
+        }
+        *len = processed;
+        if (!is_ack_eliciting) {
+            connection->non_ack_eliciting_count++;
+        }
+        connection->last_receive_time = current_time;
+        connection->require_ack |= is_ack_eliciting;
+        connection->last_received_record_sequence = ptls_get_traffic_protection(session->tls, 1)->seq - 1;
+    }
+    connection->decryption_ctx->seq = ptls_get_traffic_protection(session->tls, 1)->seq;
+    connection->stats.bytes_received += *len;
+}
+
 int rapido_read_connection(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time) {
     rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
     size_t recvbuf_max = 32 * TLS_MAX_ENCRYPTED_RECORD_SIZE;
@@ -1724,119 +1844,13 @@ int rapido_read_connection(rapido_session_t *session, rapido_connection_id_t con
     recvd = UINT64_MAX;
     recvbuf = rapido_buffer_peek(&connection->receive_buffer, 0, &recvd);
     if (!session->is_server && !ptls_handshake_is_complete(connection->tls)) {
-        ptls_buffer_t handshake_buffer = {0};
-        ptls_buffer_init(&handshake_buffer, "", 0);
         consumed = recvd;
-        ptls_handshake_properties_t tls_properties = {0};
-        assert(tls_properties.additional_extensions == NULL);
-        tls_properties.collect_extension = collect_rapido_extensions;
-        tls_properties.collected_extensions = collected_rapido_extensions;
-        int ret = ptls_handshake(connection->tls, &handshake_buffer, recvbuf, &consumed, &tls_properties);
-        todo_eerror(ret != 0 && ret != PTLS_ERROR_IN_PROGRESS, ret);
-        if (ret == 0) {
-            bool has_rapido_hello = false;
-            for (ptls_raw_extension_t *extension = tls_properties.additional_extensions;
-                 extension->type != UINT16_MAX && !has_rapido_hello; extension++) {
-                if (extension->type == TLS_RAPIDO_HELLO_EXT) {
-                    has_rapido_hello = true;
-                }
-            }
-            assert(has_rapido_hello || ptls_handshake_is_complete(session->tls));
-            todo(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) != handshake_buffer.off);
-            ptls_buffer_dispose(&handshake_buffer);
-            if (connection->tls != session->tls) {
-                ptls_free(connection->tls);
-                connection->tls = session->tls;
-            }
-            assert(ptls_get_cipher(session->tls)->aead->iv_size >= 12);
-            todo(setup_connection_crypto_context(session, connection) != 0);
-            QLOG(session, "session", "connection_state_change", "", "{\"state\": \"sent_cf\", \"connection_id\": \"%d\"}}",
-                 connection->connection_id);
-        }
-        free(tls_properties.additional_extensions);
-        tls_properties.additional_extensions = NULL;
+        rapido_client_process_handshake(session, connection_id, recvbuf, &consumed);
     }
     if (ptls_handshake_is_complete(connection->tls) && consumed < recvd) {
-        ptls_set_traffic_protection(session->tls, connection->decryption_ctx, 1);
         size_t recvd_offset = consumed;
-        while (recvd_offset < recvd) {
-            size_t record_missing_len = 0;
-            bool is_record_complete = is_tls_record_complete(recvbuf + recvd_offset, recvd - recvd_offset, &record_missing_len);
-            if (!is_record_complete) {
-                size_t additional_len = record_missing_len;
-                uint8_t *additional_data = rapido_buffer_peek(&connection->receive_buffer, recvd, &additional_len);
-                if (additional_len != record_missing_len) {
-                    consumed = recvd_offset;
-                    connection->receive_buffer_fragmented = true;
-                    break;
-                }
-                connection->receive_buffer_fragmented = false;
-            }
-
-            uint8_t plaintext_buf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
-            ptls_buffer_t plaintext = {0};
-            ptls_buffer_init(&plaintext, plaintext_buf, sizeof(plaintext_buf));
-            consumed = recvd - recvd_offset;
-            int ret = ptls_receive(session->tls, &plaintext, recvbuf + recvd_offset, &consumed);
-            recvd_offset += consumed;
-            if (ret != 0) {
-                printf("ret: %d\n", ret);
-            }
-            todo(ret != 0);
-            if (plaintext.off > 0) {
-                QLOG(session, "transport", "receive_record", "",
-                     "{\"connection_id\": \"%u\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}", connection_id,
-                     ptls_get_traffic_protection(session->tls, 1)->seq - 1, consumed);
-            }
-            bool is_ack_eliciting = false;
-            for (size_t offset = 0; offset < plaintext.off;) {
-                rapido_frame_type_t frame_type = plaintext.base[offset];
-                size_t len = plaintext.off - offset;
-                is_ack_eliciting |= rapido_frame_is_ack_eliciting(frame_type);
-                switch (frame_type) {
-                case stream_frame_type: {
-                    rapido_stream_frame_t frame;
-                    assert(rapido_decode_stream_frame(session, plaintext.base + offset, &len, &frame) == 0);
-                    assert(rapido_process_stream_frame(session, &frame) == 0);
-                } break;
-                case ack_frame_type: {
-                    rapido_ack_frame_t frame;
-                    assert(rapido_decode_ack_frame(session, plaintext.base + offset, &len, &frame) == 0);
-                    assert(rapido_process_ack_frame(session, &frame) == 0);
-                } break;
-                case new_session_id_frame_type: {
-                    rapido_new_session_id_frame_t frame;
-                    assert(rapido_decode_new_session_id_frame(session, plaintext.base + offset, &len, &frame) == 0);
-                    assert(rapido_process_new_session_id_frame(session, &frame) == 0);
-                } break;
-                case new_address_frame_type: {
-                    rapido_new_address_frame_t frame;
-                    assert(rapido_decode_new_address_frame(session, plaintext.base + offset, &len, &frame) == 0);
-                    assert(rapido_process_new_address_frame(session, &frame) == 0);
-                } break;
-                case connection_reset_frame_type: {
-                    rapido_connection_reset_frame_t frame;
-                    assert(rapido_decode_connection_reset_frame(session, plaintext.base + offset, &len, &frame) == 0);
-                    assert(rapido_process_connection_reset_frame(session, &frame) == 0);
-                } break;
-                default:
-                    WARNING("Unsupported frame type: %d\n", frame_type);
-                    assert(!"Unsupported frame type");
-                    offset = plaintext.off;
-                    break;
-                }
-                offset += len;
-            }
-            consumed = recvd_offset;
-            if (!is_ack_eliciting) {
-                connection->non_ack_eliciting_count++;
-            }
-            connection->last_receive_time = current_time;
-            connection->require_ack |= is_ack_eliciting;
-            connection->last_received_record_sequence = ptls_get_traffic_protection(session->tls, 1)->seq - 1;
-        }
-        connection->decryption_ctx->seq = ptls_get_traffic_protection(session->tls, 1)->seq;
-        connection->stats.bytes_received += consumed;
+        consumed = recvd - consumed;
+        rapido_process_incoming_data(session, connection_id, current_time, recvbuf + recvd_offset, &consumed);
     }
     size_t len = consumed;
     rapido_buffer_pop(&connection->receive_buffer, &len);
@@ -1847,42 +1861,48 @@ int rapido_read_connection(rapido_session_t *session, rapido_connection_id_t con
     return wants_to_read;
 }
 
+void rapido_prepare_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len) {
+    rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
+    ptls_set_traffic_protection(session->tls, connection->encryption_ctx, 0);
+    size_t produced = 0;
+    while (produced < *len && connection->sent_records.size < connection->sent_records.capacity) {
+        size_t cleartext_len = TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(min(*len - produced, TLS_MAX_ENCRYPTED_RECORD_SIZE));
+        uint8_t cleartext[cleartext_len];
+        bool is_ack_eliciting = false;
+        rapido_prepare_record(session, connection, cleartext, &cleartext_len, &is_ack_eliciting);
+        ptls_buffer_t sendbuf = {0};
+        ptls_buffer_init(&sendbuf, buffer + produced, *len - produced);
+        if (cleartext_len > 0) {
+            todo(ptls_send(session->tls, &sendbuf, cleartext, cleartext_len) != 0);
+            assert(sendbuf.is_allocated == 0);
+            QLOG(session, "transport", "sent_record", "",
+                    "{\"connection_id\": \"%u\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}", connection_id,
+                    ptls_get_traffic_protection(session->tls, 0)->seq - 1, sendbuf.off);
+            produced += sendbuf.off;
+
+            rapido_record_metadata_t *record = rapido_queue_push(&connection->sent_records);
+            record->ciphertext_len = sendbuf.off;
+            record->tls_record_sequence = ptls_get_traffic_protection(session->tls, 0)->seq - 1;
+            record->ack_eliciting = is_ack_eliciting;
+            record->sent_time = get_usec_time();
+            connection->encryption_ctx->seq = ptls_get_traffic_protection(session->tls, 0)->seq;
+        } else {
+            break;
+        }
+    }
+    *len = produced;
+}
+
 int rapido_send_on_connection(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time) {
     int wants_to_write = 1;
     rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
     if (connection->send_buffer.size == connection->sent_offset) {
         size_t ciphertext_len = 16 * TLS_MAX_ENCRYPTED_RECORD_SIZE;
-        size_t produced = 0;
         uint8_t *ciphertext = rapido_buffer_alloc(&connection->send_buffer, &ciphertext_len, TLS_MAX_ENCRYPTED_RECORD_SIZE);
         todo(ciphertext == NULL);
         assert(ciphertext_len >= TLS_MAX_ENCRYPTED_RECORD_SIZE);
-        ptls_set_traffic_protection(session->tls, connection->encryption_ctx, 0);
-        while (produced < ciphertext_len && connection->sent_records.size < connection->sent_records.capacity) {
-            size_t cleartext_len =
-                TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(min(ciphertext_len - produced, TLS_MAX_ENCRYPTED_RECORD_SIZE));
-            uint8_t cleartext[cleartext_len];
-            bool is_ack_eliciting = false;
-            rapido_prepare_record(session, connection, cleartext, &cleartext_len, &is_ack_eliciting);
-            ptls_buffer_t sendbuf = {0};
-            ptls_buffer_init(&sendbuf, ciphertext + produced, ciphertext_len - produced);
-            if (cleartext_len > 0) {
-                todo(ptls_send(session->tls, &sendbuf, cleartext, cleartext_len) != 0);
-                assert(sendbuf.is_allocated == 0);
-                QLOG(session, "transport", "sent_record", "",
-                     "{\"connection_id\": \"%u\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}", connection_id,
-                     ptls_get_traffic_protection(session->tls, 0)->seq - 1, sendbuf.off);
-                produced += sendbuf.off;
-
-                rapido_record_metadata_t *record = rapido_queue_push(&connection->sent_records);
-                record->ciphertext_len = sendbuf.off;
-                record->tls_record_sequence = ptls_get_traffic_protection(session->tls, 0)->seq - 1;
-                record->ack_eliciting = is_ack_eliciting;
-                record->sent_time = get_usec_time();
-                connection->encryption_ctx->seq = ptls_get_traffic_protection(session->tls, 0)->seq;
-            } else {
-                break;
-            }
-        }
+        size_t produced = ciphertext_len;
+        rapido_prepare_data(session, connection_id, current_time, ciphertext, &produced);
         rapido_buffer_trim_end(&connection->send_buffer, ciphertext_len - produced);
     }
 
