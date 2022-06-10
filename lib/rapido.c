@@ -868,6 +868,7 @@ rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8
     tls_properties.client.tls_session_id =
         ptls_iovec_init(rapido_array_get(&session->tls_session_ids, connection_id), TLS_SESSION_ID_LEN);
     ret = ptls_handshake(connection->tls, &handshake_buffer, NULL, 0, &tls_properties);
+    free(tls_properties.additional_extensions);
 
     todo(ret != PTLS_ERROR_IN_PROGRESS);
     todo(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) != handshake_buffer.off);
@@ -2121,6 +2122,7 @@ int rapido_server_free(rapido_server_t *server) {
         free(server->server_name);
         server->server_name = NULL;
     }
+    rapido_array_free(&server->local_addresses);
     rapido_array_iter(&server->sessions, i, rapido_session_t * session, { rapido_session_free(session); });
     rapido_array_free(&server->sessions);
     rapido_array_iter(&server->listen_sockets, i, int *socket, {
