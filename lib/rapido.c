@@ -1687,7 +1687,7 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
     return 0;
 }
 
-void rapido_client_process_handshake(rapido_session_t *session, rapido_connection_id_t connection_id, uint8_t *buffer, size_t *len) {
+int rapido_client_process_handshake(rapido_session_t *session, rapido_connection_id_t connection_id, uint8_t *buffer, size_t *len) {
     assert(!session->is_server);
     rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
     ptls_buffer_t handshake_buffer = {0};
@@ -1720,6 +1720,7 @@ void rapido_client_process_handshake(rapido_session_t *session, rapido_connectio
     }
     free(tls_properties.additional_extensions);
     tls_properties.additional_extensions = NULL;
+    return ptls_handshake_is_complete(connection->tls);
 }
 
 void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len) {
