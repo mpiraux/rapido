@@ -1760,10 +1760,15 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
         *len = recvd - processed;
         int ret = ptls_receive(session->tls, &plaintext, buffer + processed, len);
         processed += *len;
-        if (ret != 0) {
+        if (PTLS_ERROR_TO_ALERT(ret) == PTLS_ALERT_CLOSE_NOTIFY) {
+            session->is_closed = true;
+            rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
+            notification->notification_type = rapido_session_closed;
+            QLOG(session, "session", "session_state_change", "", "{\"state\": \"close_notify\"}");
+        } else if (ret != 0) {
             printf("ret: %d\n", ret);
+            todo(ret != 0);
         }
-        todo(ret != 0);
         if (plaintext.off > 0) {
             QLOG(session, "transport", "receive_record", "",
                     "{\"connection_id\": \"%u\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}", connection_id,
@@ -2057,7 +2062,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                 }
             }
         }
-    } while ((no_fds < 2 || fds_change) && has_low_occupancy(session->pending_notifications));
+    } while ((no_fds < 2 || fds_change) && has_low_occupancy(session->pending_notifications) && !session->is_closed);
     return 0;
 }
 

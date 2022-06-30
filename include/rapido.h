@@ -149,6 +149,7 @@ typedef struct {
 
     rapido_array_t tls_session_ids;
     bool is_server;
+    bool is_closed;
 
     rapido_queue_t pending_notifications;
 
@@ -247,6 +248,7 @@ typedef struct {
         rapido_stream_has_data,
         rapido_stream_closed,
         rapido_new_remote_address,
+        rapido_session_closed,
     } notification_type;
 
     union {
