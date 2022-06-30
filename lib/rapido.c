@@ -34,6 +34,8 @@
 #define todo_perror(errnum) assert_perror(errnum)
 #define todo_eerror(expr, errnum) {if(expr){fprintf(stderr,"Error %d\n", errnum);assert(!(expr));}}
 
+#define rapido_unused(x) (void)(x)
+
 #define SOCKADDR_ADDR(a)                                                                                                           \
     (((struct sockaddr *)(a))->sa_family == AF_INET ? (void *)&((struct sockaddr_in *)(a))->sin_addr                               \
                                                     : (void *)&((struct sockaddr_in6 *)(a))->sin6_addr)
@@ -47,8 +49,6 @@
 #define TLS_RECORD_CIPHERTEXT_TO_CLEARTEXT_LEN(l) ((l)-22)
 #define TLS_RECORD_HEADER_LEN (1 + 2 + 2)
 #define TLS_RAPIDO_HELLO_EXT 100
-
-static uint8_t random_data[16384];
 
 #define DEFAULT_TCPLS_SESSION_ID_AMOUNT 4
 #define DEFAULT_DELAYED_ACK_COUNT 16
@@ -575,13 +575,13 @@ void rapido_range_buffer_free(rapido_range_buffer_t *receive) {
 typedef uint8_t rapido_frame_type_t;
 
 static const rapido_frame_type_t padding_frame_type = 0x0;
-static const rapido_frame_type_t ping_frame_type = 0x1;
+static  __attribute__((unused)) const rapido_frame_type_t ping_frame_type = 0x1;
 static const rapido_frame_type_t stream_frame_type = 0x2;
 static const rapido_frame_type_t ack_frame_type = 0x3;
 static const rapido_frame_type_t new_session_id_frame_type = 0x4;
 static const rapido_frame_type_t new_address_frame_type = 0x5;
 static const rapido_frame_type_t connection_reset_frame_type = 0x6;
-static const rapido_frame_type_t ebpf_code_frame_type = 0x7;
+static __attribute__((unused)) const rapido_frame_type_t ebpf_code_frame_type = 0x7;
 
 typedef struct {
     rapido_stream_id_t stream_id;
@@ -1465,6 +1465,7 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
 
     if (SET_SIZE(session->addresses_advertised) < session->local_addresses.size) {
         rapido_array_iter(&session->local_addresses, i, struct sockaddr_storage * address, {
+            rapido_unused(address);
             rapido_address_id_t address_id = i;
             size_t frame_len = *len - consumed;
             rapido_prepare_new_address_frame(session, address_id, cleartext + consumed, &frame_len);
@@ -1748,6 +1749,7 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
         if (!is_record_complete) {
             size_t additional_len = record_missing_len;
             uint8_t *additional_data = rapido_buffer_peek(&connection->receive_buffer, recvd, &additional_len);
+            rapido_unused(additional_data);
             if (additional_len != record_missing_len) {
                 *len = processed;
                 connection->receive_buffer_fragmented = true;
@@ -2071,7 +2073,6 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
 int rapido_run_server_network(rapido_server_t *server, int timeout) {
     int no_fds = 0;
     do {
-        uint64_t current_time = get_usec_time();
         size_t nfds = server->listen_sockets.size + server->pending_connections.size;
         struct pollfd fds[nfds];
         size_t connections_index[nfds];
