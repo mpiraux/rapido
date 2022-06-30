@@ -908,10 +908,12 @@ int rapido_attach_stream(rapido_session_t *session, rapido_stream_id_t stream_id
     rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
     assert(connection != NULL);
 
-    SET_ADD(stream->connections, connection_id);
-    SET_ADD(connection->attached_streams, stream_id);
-    QLOG(session, "api", "rapido_attach_stream", "", "{\"stream_id\": \"%d\", \"connection_id\": \"%d\"}", stream_id,
-         connection_id);
+    if (!SET_HAS(stream->connections, connection_id)) {
+        SET_ADD(stream->connections, connection_id);
+        SET_ADD(connection->attached_streams, stream_id);
+        QLOG(session, "api", "rapido_attach_stream", "", "{\"stream_id\": \"%d\", \"connection_id\": \"%d\"}", stream_id,
+            connection_id);
+    }
     return 0;
 }
 int rapido_remove_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id) {
