@@ -303,11 +303,20 @@ void *rapido_read_stream(rapido_session_t *session, rapido_stream_id_t stream_id
 /** Marks the end of this stream. */
 int rapido_close_stream(rapido_session_t *session, rapido_stream_id_t stream_id);
 
-/** Processes data received by a client during the handshake and returns whether the handshake is complete */
+/** Adds a given file descriptor as a new connection to a session. */
+int rapido_session_accept_new_connection(rapido_session_t *session, int accept_fd, rapido_address_id_t local_address_id);
+/** Accepts from a given file descriptor and adds the new connection to the server. */ 
+int rapido_server_accept_new_connection(rapido_server_t *server, int accept_fd, rapido_address_id_t local_address_id);
+/** Adds the new connection to pending connections. */
+int rapido_server_add_new_connection(rapido_array_t *pending_connections, ptls_context_t *tls_ctx, ptls_t *tls,
+                                     const char *server_name, int conn_fd, rapido_address_id_t local_address_id);
+/** Processes data received by a client during the handshake and returns whether the handshake is complete. */
 int rapido_client_process_handshake(rapido_session_t *session, rapido_connection_id_t connection_id, uint8_t *buffer, size_t *len);
-/** Processes incoming data received by either a server or after the handshake */
+/** Processes data received by a server during the handshake. */
+void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections, size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, rapido_connection_t **created_connection);
+/** Processes incoming data received after the handshake. */
 void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len);
-/** Prepares data to send */
+/** Prepares data to send. */
 void rapido_prepare_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len);
 
 /** Deallocates the memory zones referenced in this session structure. */

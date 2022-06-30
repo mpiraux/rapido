@@ -1541,20 +1541,13 @@ int rapido_server_accept_new_connection(rapido_server_t *server, int accept_fd, 
     return 0;
 }
 
-int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections,
-                            size_t pending_connection_index) {
-    assert(server || session);
-    rapido_pending_connection_t *connection = rapido_array_get(pending_connections, pending_connection_index);
-    uint8_t recvbuf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
-    assert(connection->socket > -1);
-    size_t recvd = recv(connection->socket, recvbuf, sizeof(recvbuf), 0);
-    todo_perror(recvd == -1 && (errno == EWOULDBLOCK || errno == EAGAIN));
-    ptls_buffer_t handshake_buffer = {0};
-    ptls_buffer_init(&handshake_buffer, "", 0);
+void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections,
+                            size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, rapido_connection_t **created_connection) {
     uint8_t tls_session_id_buf[TLS_SESSION_ID_LEN];
+    rapido_pending_connection_t *connection = rapido_array_get(pending_connections, pending_connection_index);
     connection->tls_properties.server.tls_session_id = ptls_iovec_init(tls_session_id_buf, sizeof(tls_session_id_buf));
-    size_t consumed = recvd;
-    int ret = ptls_handshake(connection->tls, &handshake_buffer, recvbuf, &consumed, &connection->tls_properties);
+    size_t consumed = *len;
+    int ret = ptls_handshake(connection->tls, handshake_buffer, buffer, &consumed, &connection->tls_properties);
     todo(ret != 0 && ret != PTLS_ERROR_IN_PROGRESS);
     if (ret == 0) {
         /* ClientHello */
@@ -1584,8 +1577,6 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
                      connection->local_address_id);
             }
         }
-        todo(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) != handshake_buffer.off);
-        ptls_buffer_dispose(&handshake_buffer);
         /* ClientFinished */
         if (ptls_handshake_is_complete(connection->tls)) {
             int tls_session_id_sequence = -1;
@@ -1660,11 +1651,6 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
             todo(setup_connection_crypto_context(session, new_connection) != 0);
             // TODO: Find the addresses it uses
 
-            if (consumed < recvd) {
-                size_t allocated = recvd - consumed;
-                memcpy(rapido_buffer_alloc(&new_connection->receive_buffer, &allocated, allocated), recvbuf + consumed, allocated);
-            }
-
             QLOG(session, "session", "connection_state_change", "",
                  "{\"state\": \"ready\", \"socket\": \"%d\", \"local_address_id\": \"%d\", \"remote_address_id\": \"%d\", "
                  "\"connection_id\": \"%d\"}}",
@@ -1678,11 +1664,37 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
                 ptls_free(connection->tls);
             }
             rapido_array_delete(pending_connections, pending_connection_index);
+            if (created_connection) {
+                *created_connection = new_connection;
+            }
         }
     } else if (ret != PTLS_ERROR_IN_PROGRESS) {
         WARNING("Pending connection %zu returned pTLS error code %d during handshake\n", pending_connection_index, ret);
         close(connection->socket);
         rapido_array_delete(pending_connections, pending_connection_index);
+    }
+}
+
+int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections,
+                            size_t pending_connection_index) {
+    assert(server || session);
+    rapido_pending_connection_t *connection = rapido_array_get(pending_connections, pending_connection_index);
+    uint8_t recvbuf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
+    assert(connection->socket > -1);
+    size_t recvd = recv(connection->socket, recvbuf, sizeof(recvbuf), 0);
+    todo_perror(recvd == -1 && (errno == EWOULDBLOCK || errno == EAGAIN));
+    ptls_buffer_t handshake_buffer = {0};
+    ptls_buffer_init(&handshake_buffer, "", 0);
+    size_t consumed = recvd;
+    rapido_connection_t *new_connection = NULL;
+    rapido_server_process_handshake(server, session, pending_connections, pending_connection_index, recvbuf, &consumed, &handshake_buffer, &new_connection);
+    if (new_connection && consumed < recvd) {
+        size_t remaining = recvd - consumed;
+        memcpy(rapido_buffer_alloc(&new_connection->receive_buffer, &remaining, remaining), recvbuf + consumed, remaining);
+    }
+    if (handshake_buffer.off) {
+        todo(send(connection->socket, handshake_buffer.base, handshake_buffer.off, 0) != handshake_buffer.off);
+        ptls_buffer_dispose(&handshake_buffer);
     }
     return 0;
 }
