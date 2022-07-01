@@ -1549,8 +1549,7 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
     uint8_t tls_session_id_buf[TLS_SESSION_ID_LEN];
     rapido_pending_connection_t *connection = rapido_array_get(pending_connections, pending_connection_index);
     connection->tls_properties.server.tls_session_id = ptls_iovec_init(tls_session_id_buf, sizeof(tls_session_id_buf));
-    size_t consumed = *len;
-    int ret = ptls_handshake(connection->tls, handshake_buffer, buffer, &consumed, &connection->tls_properties);
+    int ret = ptls_handshake(connection->tls, handshake_buffer, buffer, len, &connection->tls_properties);
     todo(ret != 0 && ret != PTLS_ERROR_IN_PROGRESS);
     if (ret == 0) {
         /* ClientHello */
@@ -1764,7 +1763,7 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
         *len = recvd - processed;
         int ret = ptls_receive(session->tls, &plaintext, buffer + processed, len);
         processed += *len;
-        if (PTLS_ERROR_TO_ALERT(ret) == PTLS_ALERT_CLOSE_NOTIFY) {
+        if (ret && PTLS_ERROR_TO_ALERT(ret) == PTLS_ALERT_CLOSE_NOTIFY) {
             session->is_closed = true;
             rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
             notification->notification_type = rapido_session_closed;
