@@ -108,15 +108,16 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
     bool closed = false;
     while (!closed && data_received < data_to_receive) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
+        bool has_read = false;
         while (session->pending_notifications.size > 0) {
             rapido_application_notification_t *notification = rapido_queue_pop(&session->pending_notifications);
             if (notification->notification_type == rapido_new_stream) {
                 printf("New stream from server\n");
-            } else if (notification->notification_type == rapido_stream_has_data) {
+            } else if (!has_read && notification->notification_type == rapido_stream_has_data) {
                 size_t read_len = UINT64_MAX;
                 rapido_read_stream(session, notification->stream_id, &read_len);
                 data_received += read_len;
-                rapido_queue_drain(&session->pending_notifications, notification, {});
+                has_read = true;
             } else if (notification->notification_type == rapido_session_closed) {
                 printf("Session closed\n");
                 closed = true;
