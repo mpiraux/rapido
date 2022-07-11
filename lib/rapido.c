@@ -156,6 +156,7 @@ int setup_connection_crypto_context(rapido_session_t *session, rapido_connection
         // Connection with connection ID 0, i.e. the first connection of the session, reuses the crypto materials
         // from the session structure, as it does not need to derive a new IV or have its own sequence.
         ptls_aead_free(ctx_enc->aead);
+        ptls_set_traffic_protection(session->tls, connection->encryption_ctx, 0);
     }
 
     connection->own_decryption_ctx = malloc(sizeof(struct st_ptls_traffic_protection_t));
@@ -187,6 +188,7 @@ int setup_connection_crypto_context(rapido_session_t *session, rapido_connection
         // Connection with connection ID 0, i.e. the first connection of the session, reuses the crypto materials
         // from the session structure, as it does not need to derive a new IV or have its own sequence.
         ptls_aead_free(ctx_dec->aead);
+        ptls_set_traffic_protection(session->tls, connection->decryption_ctx, 1);
     }
     return 0;
 }
@@ -1545,7 +1547,7 @@ int rapido_server_accept_new_connection(rapido_server_t *server, int accept_fd, 
 }
 
 void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections,
-                            size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, rapido_connection_t **created_connection) {
+                            size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, rapido_session_t **created_session, rapido_connection_t **created_connection) {
     uint8_t tls_session_id_buf[TLS_SESSION_ID_LEN];
     rapido_pending_connection_t *connection = rapido_array_get(pending_connections, pending_connection_index);
     connection->tls_properties.server.tls_session_id = ptls_iovec_init(tls_session_id_buf, sizeof(tls_session_id_buf));
@@ -1619,6 +1621,9 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
                         memcpy(rapido_array_add(&session->local_addresses, local_address_id), local_address,
                                SOCKADDR_LEN(local_address));
                     });
+                    if (created_session) {
+                        *created_session = session;
+                    }
                     LOG {
                         char tls_session_id_str[TLS_SESSION_ID_LEN * 2 + 1];
                         tohex(connection->tls_session_id, TLS_SESSION_ID_LEN, tls_session_id_str);
@@ -1689,7 +1694,7 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
     ptls_buffer_init(&handshake_buffer, "", 0);
     size_t consumed = recvd;
     rapido_connection_t *new_connection = NULL;
-    rapido_server_process_handshake(server, session, pending_connections, pending_connection_index, recvbuf, &consumed, &handshake_buffer, &new_connection);
+    rapido_server_process_handshake(server, session, pending_connections, pending_connection_index, recvbuf, &consumed, &handshake_buffer, NULL, &new_connection);
     if (new_connection && consumed < recvd) {
         size_t remaining = recvd - consumed;
         memcpy(rapido_buffer_alloc(&new_connection->receive_buffer, &remaining, remaining), recvbuf + consumed, remaining);

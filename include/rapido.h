@@ -315,7 +315,7 @@ int rapido_server_add_new_connection(rapido_array_t *pending_connections, ptls_c
 /** Processes data received by a client during the handshake and returns whether the handshake is complete. */
 int rapido_client_process_handshake(rapido_session_t *session, rapido_connection_id_t connection_id, uint8_t *buffer, size_t *len);
 /** Processes data received by a server during the handshake. */
-void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections, size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, rapido_connection_t **created_connection);
+void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections, size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, rapido_session_t **created_session, rapido_connection_t **created_connection);
 /** Processes incoming data received after the handshake. */
 void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len);
 /** Prepares data to send. */
