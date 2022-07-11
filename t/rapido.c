@@ -25,6 +25,7 @@ static void usage(const char *cmd) {
            "  -q qlog-file         file to output qlog events\n"
            "  -s download-size     amount of data to receive in GB\n"
            "  -g path              requests the given path using HTTP/0.9 over stream 0\n"
+           "  -r repeat            repeat the request a given amount of times\n"
            "  -y cipher-suite      cipher-suite to be used, e.g., aes128gcmsha256 (default:\n"
            "                       all)\n"
            "  -h                   prints this help\n"
@@ -90,17 +91,24 @@ void run_server(rapido_session_t *session) {
     }
 }
 
-void run_client(rapido_session_t *session, size_t data_to_receive, const char *get_path) {
-     if (get_path) {
-        char *server_name = ptls_get_server_name(session->tls);
+void enqueue_get_request(rapido_session_t *session, rapido_stream_id_t stream, const char *get_path) {
+    char *server_name = ptls_get_server_name(session->tls);
+    rapido_add_to_stream(session, stream, "GET ", 4);
+    rapido_add_to_stream(session, stream, get_path, strlen(get_path));
+    rapido_add_to_stream(session, stream, " HTTP/1.1\n", 10);
+    rapido_add_to_stream(session, stream, "Host: ", 6);
+    rapido_add_to_stream(session, stream, server_name, strlen(server_name));
+    rapido_add_to_stream(session, stream, "\nUser-Agent: rapido/0.0.1\n\n", 27);
+        
+}
+
+void run_client(rapido_session_t *session, size_t data_to_receive, const char *get_path, size_t no_requests) {
+    if (get_path) {
         rapido_stream_id_t stream = rapido_open_stream(session);
         rapido_attach_stream(session, stream, 0);
-        rapido_add_to_stream(session, stream, "GET ", 4);
-        rapido_add_to_stream(session, stream, get_path, strlen(get_path));
-        rapido_add_to_stream(session, stream, " HTTP/1.0\n", 10);
-        rapido_add_to_stream(session, stream, "Host: ", 6);
-        rapido_add_to_stream(session, stream, server_name, strlen(server_name));
-        rapido_add_to_stream(session, stream, "\nUser-Agent: rapido/0.0.1\n\n", 27);
+        for (int i = 0; i < no_requests; i++) {
+            enqueue_get_request(session, stream, get_path);
+        }
         rapido_close_stream(session, stream);
     }
     uint64_t start_time = get_time();
@@ -152,9 +160,10 @@ int main(int argc, char **argv) {
     const char *cert_location = NULL;
     const char *hostname = NULL;
     const char *get_path = NULL;
+    size_t no_requests = 0;
     size_t data_to_receive = 2000000000;
 
-    while ((ch = getopt(argc, argv, "c:k:l:n:q:s:g:y:h")) != -1) {
+    while ((ch = getopt(argc, argv, "c:k:l:n:q:s:g:r:y:h")) != -1) {
         switch (ch) {
         case 'c':
             if (cert_location != NULL) {
@@ -187,6 +196,14 @@ int main(int argc, char **argv) {
         case 'g':
             get_path = optarg;
             break;
+        case 'r': {
+            char *endarg = NULL;
+            no_requests = strtol(optarg, &endarg, 10);
+            if (optarg == endarg) {
+                fprintf(stderr, "-r must be an integer\n");
+                return 1;
+            }
+        } break;
         case 'y': {
             size_t i;
             for (i = 0; cipher_suites[i] != NULL; ++i)
@@ -248,14 +265,14 @@ int main(int argc, char **argv) {
 
     signal(SIGPIPE, SIG_IGN);
 
-    rapido_session_t *session = rapido_new_session(&ctx, is_server, hostname ? hostname : host, NULL);
+    rapido_session_t *session = rapido_new_session(&ctx, is_server, hostname ? hostname : host, stderr);
     if (is_server) {
         rapido_add_address(session, (struct sockaddr *)&sa, salen);
         run_server(session);
     } else {
         rapido_address_id_t ra_id = rapido_add_remote_address(session, (struct sockaddr *)&sa, salen);
         rapido_create_connection(session, 0, ra_id);
-        run_client(session, data_to_receive, get_path);
+        run_client(session, data_to_receive, get_path, no_requests);
     }
     rapido_session_free(session);
     free(session);
