@@ -261,8 +261,8 @@ typedef struct {
 /** Creates a new rapido server. */
 rapido_server_t *rapido_new_server(ptls_context_t *tls_ctx, const char *server_name, FILE *qlog_out);
 
-/** Adds a local address to the server. */
-rapido_address_id_t rapido_add_server_address(rapido_server_t *server, struct sockaddr *addr, socklen_t addr_len);
+/** Adds a local address to the server, and creates a listen socket bound to the address when required. */
+rapido_address_id_t rapido_add_server_address(rapido_server_t *server, struct sockaddr *addr, socklen_t addr_len, bool add_listen_socket);
 /** Removes a local address from the server. */
 int rapido_remove_server_address(rapido_session_t *session, rapido_address_id_t local_address_id);
 /** Runs the server for some time. */
@@ -309,8 +309,8 @@ int rapido_close_stream(rapido_session_t *session, rapido_stream_id_t stream_id)
 int rapido_session_accept_new_connection(rapido_session_t *session, int accept_fd, rapido_address_id_t local_address_id);
 /** Accepts from a given file descriptor and adds the new connection to the server. */ 
 int rapido_server_accept_new_connection(rapido_server_t *server, int accept_fd, rapido_address_id_t local_address_id);
-/** Adds the new connection to pending connections. */
-int rapido_server_add_new_connection(rapido_array_t *pending_connections, ptls_context_t *tls_ctx, ptls_t *tls,
+/** Adds the new connection to pending connections and returns its index within the latter array. */
+size_t rapido_server_add_new_connection(rapido_array_t *pending_connections, ptls_context_t *tls_ctx, ptls_t *tls,
                                      const char *server_name, int conn_fd, rapido_address_id_t local_address_id);
 /** Processes data received by a client during the handshake and returns whether the handshake is complete. */
 int rapido_client_process_handshake(rapido_session_t *session, rapido_connection_id_t connection_id, uint8_t *buffer, size_t *len);

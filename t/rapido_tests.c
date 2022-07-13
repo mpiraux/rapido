@@ -685,7 +685,7 @@ void test_server_new_session() {
     ok(resolve_address((struct sockaddr *)&a, &len_a, "localhost", "4443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     ok(resolve_address((struct sockaddr *)&b, &len_b, "localhost", "14443", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     ok(resolve_address((struct sockaddr *)&c, &len_c, "localhost", "14444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
-    rapido_address_id_t s_aid_a = rapido_add_server_address(server, (struct sockaddr *)&a, len_a);
+    rapido_address_id_t s_aid_a = rapido_add_server_address(server, (struct sockaddr *)&a, len_a, true);
     rapido_address_id_t c_aid_b = rapido_add_address(client, (struct sockaddr *)&b, len_b);
     rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
     rapido_connection_id_t c_cid = rapido_create_connection(client, c_aid_b, c_aid_a);
@@ -781,7 +781,7 @@ void test_server_addresses() {
     ok(resolve_address((struct sockaddr *)&c, &len_c, "localhost", "14444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
     ok(resolve_address((struct sockaddr *)&d, &len_d, "localhost", "4444", AF_INET, SOCK_STREAM, IPPROTO_TCP) == 0);
 
-    rapido_address_id_t s_aid_a = rapido_add_server_address(server, (struct sockaddr *)&a, len_a);
+    rapido_address_id_t s_aid_a = rapido_add_server_address(server, (struct sockaddr *)&a, len_a, true);
     rapido_address_id_t c_aid_b = rapido_add_address(client, (struct sockaddr *)&b, len_b);
     rapido_address_id_t c_aid_a = rapido_add_remote_address(client, (struct sockaddr *)&a, len_a);
     rapido_connection_id_t c_cid = rapido_create_connection(client, c_aid_b, c_aid_a);
@@ -812,7 +812,7 @@ void test_server_addresses() {
     ok(ptls_handshake_is_complete(SESSION(server, server_session2_index)->tls));
     rapido_run_network(SESSION(server, server_session2_index), RUN_NETWORK_TIMEOUT_DEFAULT);
 
-    rapido_address_id_t s_aid_d = rapido_add_server_address(server, (struct sockaddr *)&d, len_d);
+    rapido_address_id_t s_aid_d = rapido_add_server_address(server, (struct sockaddr *)&d, len_d, true);
     rapido_run_network(SESSION(server, server_session_index), RUN_NETWORK_TIMEOUT_DEFAULT);
     rapido_run_network(SESSION(server, server_session2_index), RUN_NETWORK_TIMEOUT_DEFAULT);
 

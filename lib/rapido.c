@@ -261,6 +261,15 @@ void *rapido_array_push(rapido_array_t *array) {
     return rapido_array_add(array, i);
 }
 
+/** Returns the index of the element for the given pointer. */
+size_t rapido_array_index(rapido_array_t *array, void *ptr) {
+    assert((uint8_t *) ptr >= (uint8_t *) array->data);
+    size_t offset = ((uint8_t *) ptr) - ((uint8_t *) array->data);
+    printf("offset: %zu\n", offset);
+    assert(offset % (1 + array->item_size) == 1);
+    return (offset - 1) / (1 + array->item_size);
+}
+
 /** Returns a pointer to element at index */
 void *rapido_array_get(rapido_array_t *array, size_t index) {
     if (index >= array->capacity) {
@@ -679,12 +688,14 @@ int rapido_add_listen_socket(rapido_array_t *listen_sockets, struct sockaddr *lo
 }
 
 rapido_address_id_t rapido_add_server_address(rapido_server_t *server, struct sockaddr *local_address,
-                                              socklen_t local_address_len) {
+                                              socklen_t local_address_len, bool add_listen_socket) {
     assert(local_address != NULL);
     assert(local_address_len == sizeof(struct sockaddr_in) || local_address_len == sizeof(struct sockaddr_in6));
     rapido_address_id_t local_address_id = server->next_local_address_id++;
     memcpy(rapido_array_add(&server->local_addresses, local_address_id), local_address, local_address_len);
-    todo(rapido_add_listen_socket(&server->listen_sockets, local_address, local_address_id) != 0);
+    if (add_listen_socket) {
+        todo(rapido_add_listen_socket(&server->listen_sockets, local_address, local_address_id) != 0);
+    }
     rapido_array_iter(&server->sessions, i, rapido_session_t * session, {
         local_address_id = session->next_local_address_id++;
         memcpy(rapido_array_add(&session->local_addresses, local_address_id), local_address, local_address_len);
@@ -1501,9 +1512,10 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
     return 0;
 }
 
-int rapido_server_add_new_connection(rapido_array_t *pending_connections, ptls_context_t *tls_ctx, ptls_t *tls,
+size_t rapido_server_add_new_connection(rapido_array_t *pending_connections, ptls_context_t *tls_ctx, ptls_t *tls,
                                      const char *server_name, int conn_fd, rapido_address_id_t local_address_id) {
     rapido_pending_connection_t *pending_connection = rapido_array_push(pending_connections);
+    size_t pending_connection_index = rapido_array_index(pending_connections, pending_connection);
     memset(pending_connection, 0, sizeof(rapido_pending_connection_t));
     pending_connection->socket = conn_fd;
     pending_connection->tls_ctx = tls_ctx;
@@ -1516,7 +1528,7 @@ int rapido_server_add_new_connection(rapido_array_t *pending_connections, ptls_c
     pending_connection->tls_properties.collect_extension = collect_rapido_extensions;
     pending_connection->tls_properties.collected_extensions = collected_rapido_extensions;
     pending_connection->local_address_id = local_address_id;
-    return 0;
+    return pending_connection_index;
 }
 
 int rapido_session_accept_new_connection(rapido_session_t *session, int accept_fd, rapido_address_id_t local_address_id) {
@@ -1651,7 +1663,7 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
             bool remote_address_known = false;
             rapido_array_iter(&session->remote_addresses, i, struct sockaddr_storage * remote_address, {
                 if (sockaddr_equal((struct sockaddr *)remote_address, (struct sockaddr *)&peer_address)) {
-                    new_connection->remote_address_id = (rapido_address_id_t)i;
+                    new_connection->remote_address_id = (rapido_address_id_t) i;
                     remote_address_known = true;
                 }
             });
@@ -1671,6 +1683,9 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
                 ptls_free(connection->tls);
             }
             rapido_array_delete(pending_connections, pending_connection_index);
+            if (created_session){
+                *created_session = session;
+            }
             if (created_connection) {
                 *created_connection = new_connection;
             }
@@ -2180,7 +2195,7 @@ int rapido_session_free(rapido_session_t *session) {
         free(connection->decryption_ctx);
         ptls_aead_free(connection->own_decryption_ctx->aead);
         free(connection->own_decryption_ctx);
-        if (connection->tls != session->tls) {
+        if (connection->tls != NULL && connection->tls != session->tls) {
             ptls_free(connection->tls);
         }
     });
