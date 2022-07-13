@@ -294,7 +294,7 @@ static inline int resolve_address(struct sockaddr *sa, socklen_t *salen, const c
     hints.ai_socktype = type;
     hints.ai_protocol = proto;
     hints.ai_flags = AI_ADDRCONFIG | AI_NUMERICSERV | AI_PASSIVE;
-    if ((err = getaddrinfo(host, port, &hints, &res)) != 0 || res == NULL) {
+    if (((err = getaddrinfo(host, port, &hints, &res)) != 0 || res == NULL) && family == 0) {
         fprintf(stderr, "failed to resolve address:%s:%s:%s\n", host, port,
                 err != 0 ? gai_strerror(err) : "getaddrinfo returned NULL");
         return -1;

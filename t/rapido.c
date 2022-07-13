@@ -114,6 +114,7 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
     uint64_t start_time = get_time();
     uint64_t data_received = 0;
     bool closed = false;
+    rapido_connection_id_t extra_connection = 0;
     while (!closed && data_received < data_to_receive) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
         bool has_read = false;
@@ -126,6 +127,13 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
                 rapido_read_stream(session, notification->stream_id, &read_len);
                 data_received += read_len;
                 has_read = true;
+            } else if (!extra_connection && notification->notification_type == rapido_new_remote_address) {
+                printf("Creating a new connection to the secondary address advertised by the server\n");
+                extra_connection = rapido_create_connection(session, 1, notification->address_id);
+                rapido_stream_id_t stream = rapido_open_stream(session);
+                rapido_attach_stream(session, stream, extra_connection);
+                enqueue_get_request(session, stream, get_path);
+                rapido_close_stream(session, stream);
             } else if (notification->notification_type == rapido_session_closed) {
                 printf("Session closed\n");
                 closed = true;
@@ -263,11 +271,20 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    struct sockaddr_storage extra_sa;
+    socklen_t extra_salen;
+    if (resolve_address((struct sockaddr *)&sa, &salen, host, port, sa.ss_family == AF_INET ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP) != 0) {
+        extra_salen = 0;
+    }
+
     signal(SIGPIPE, SIG_IGN);
 
     rapido_session_t *session = rapido_new_session(&ctx, is_server, hostname ? hostname : host, stderr);
     if (is_server) {
         rapido_add_address(session, (struct sockaddr *)&sa, salen);
+        if (extra_salen > 0) {
+            rapido_add_address(session, (struct sockaddr *)&extra_sa, extra_salen);
+        }
         run_server(session);
     } else {
         rapido_address_id_t ra_id = rapido_add_remote_address(session, (struct sockaddr *)&sa, salen);
