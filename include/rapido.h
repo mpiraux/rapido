@@ -204,6 +204,7 @@ typedef struct {
     } stats;
 
     ptls_t *tls;
+    void *app_ptr;
 } rapido_connection_t;
 
 typedef struct {
@@ -318,8 +319,14 @@ int rapido_client_process_handshake(rapido_session_t *session, rapido_connection
 void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections, size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, rapido_session_t **created_session, rapido_connection_t **created_connection);
 /** Processes incoming data received after the handshake. */
 void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len);
+/** Returns whether the given connection wants to send data. */
+int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection_t *connection, uint64_t current_time, bool *is_blocked);
 /** Prepares data to send. */
 void rapido_prepare_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len);
+/** Sets an application pointer associated with the given connection. */
+void rapido_connection_set_app_ptr(rapido_session_t *session, rapido_connection_id_t connection_id, void *app_ptr);
+/** Gets an application pointer associated with the given connection. */
+void *rapido_connection_get_app_ptr(rapido_session_t *session, rapido_connection_id_t connection_id);
 
 /** Deallocates the memory zones referenced in this session structure. */
 int rapido_session_free(rapido_session_t *session);

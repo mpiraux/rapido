@@ -1298,13 +1298,19 @@ int rapido_process_connection_reset_frame(rapido_session_t *session, rapido_conn
     return 0;
 }
 
-int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection_t *connection, uint64_t current_time) {
+int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection_t *connection, uint64_t current_time, bool *is_blocked) {
     if (connection->socket == -1 || !ptls_handshake_is_complete(connection->tls) ||
         connection->sent_records.size == connection->sent_records.capacity) {
+        if (is_blocked) {
+            *is_blocked = true;
+        }
         return 0;
     }
     int wants_to_send = 0;
     char *reason = NULL;
+    if (is_blocked) {
+        *is_blocked = false;
+    }
 
     wants_to_send |= connection->send_buffer.size > connection->sent_offset;
     LOG if (wants_to_send) {
@@ -1963,11 +1969,24 @@ int rapido_send_on_connection(rapido_session_t *session, rapido_connection_id_t 
         connection->sent_offset += sent_len;
     }
 
-    if (wants_to_write && rapido_connection_wants_to_send(session, connection, current_time) == 0) {
+    if (wants_to_write && rapido_connection_wants_to_send(session, connection, current_time, NULL) == 0) {
         wants_to_write = 0;
     }
     return wants_to_write;
 }
+
+void rapido_connection_set_app_ptr(rapido_session_t *session, rapido_connection_id_t connection_id, void *app_ptr) {
+    rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
+    assert(connection);
+    assert(connection->app_ptr == NULL);
+    connection->app_ptr = app_ptr;
+}
+void *rapido_connection_get_app_ptr(rapido_session_t *session, rapido_connection_id_t connection_id) {
+    rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
+    assert(connection);
+    return connection->app_ptr;
+}
+
 
 int rapido_run_network(rapido_session_t *session, int timeout) {
     // TODO: Read and writes until it blocks
@@ -2007,7 +2026,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
         rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
             fds[nfds].fd = connection->socket;
             fds[nfds].events = POLLIN;
-            if (rapido_connection_wants_to_send(session, connection, current_time)) {
+            if (rapido_connection_wants_to_send(session, connection, current_time, NULL)) {
                 fds[nfds].events |= POLLOUT;
                 wants_to_write = true;
             }
@@ -2065,7 +2084,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
         /* Write outgoing TLS records */
         current_time = get_usec_time();
         rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
-            if (rapido_connection_wants_to_send(session, connection, current_time)) {
+            if (rapido_connection_wants_to_send(session, connection, current_time, NULL)) {
                 if (!wants_to_write) {
                     fds_change = true;
                 }
