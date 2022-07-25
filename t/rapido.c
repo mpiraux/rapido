@@ -57,7 +57,7 @@ static void usage(const char *cmd) {
 
 static uint8_t random_data[16384 * 64] = {42};
 
-static uint64_t get_time() {
+static uint64_t get_usec_time() {
     struct timespec tv;
     assert(clock_gettime(CLOCK_REALTIME, &tv) == 0);
     return tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
@@ -98,20 +98,22 @@ void enqueue_get_request(rapido_session_t *session, rapido_stream_id_t stream, c
     rapido_add_to_stream(session, stream, " HTTP/1.1\n", 10);
     rapido_add_to_stream(session, stream, "Host: ", 6);
     rapido_add_to_stream(session, stream, server_name, strlen(server_name));
-    rapido_add_to_stream(session, stream, "\nUser-Agent: rapido/0.0.1\n\n", 27);
-        
+    rapido_add_to_stream(session, stream, "\nUser-Agent: rapido/0.0.1/", 26);
+    char stream_id_str[9] = {0};
+    snprintf(stream_id_str, sizeof(stream_id_str) - 1, "%d", stream);
+    rapido_add_to_stream(session, stream, stream_id_str, strlen(stream_id_str));
+    rapido_add_to_stream(session, stream, "\n\n", 2);
 }
 
 void run_client(rapido_session_t *session, size_t data_to_receive, const char *get_path, size_t no_requests) {
+    rapido_stream_id_t app_stream = rapido_open_stream(session);
     if (get_path) {
-        rapido_stream_id_t stream = rapido_open_stream(session);
-        rapido_attach_stream(session, stream, 0);
+        rapido_attach_stream(session, app_stream, 0);
         for (int i = 0; i < no_requests; i++) {
-            enqueue_get_request(session, stream, get_path);
+            enqueue_get_request(session, app_stream, get_path);
         }
-        rapido_close_stream(session, stream);
     }
-    uint64_t start_time = get_time();
+    uint64_t start_time = get_usec_time();
     uint64_t data_received = 0;
     bool closed = false;
     rapido_connection_id_t extra_connection = 0;
@@ -130,17 +132,16 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
             } else if (!extra_connection && notification->notification_type == rapido_new_remote_address) {
                 printf("Creating a new connection to the secondary address advertised by the server\n");
                 extra_connection = rapido_create_connection(session, 1, notification->address_id);
-                rapido_stream_id_t stream = rapido_open_stream(session);
-                rapido_attach_stream(session, stream, extra_connection);
-                enqueue_get_request(session, stream, get_path);
-                rapido_close_stream(session, stream);
+                rapido_attach_stream(session, app_stream, extra_connection);
+                enqueue_get_request(session, app_stream, get_path);
+                rapido_close_stream(session, app_stream);
             } else if (notification->notification_type == rapido_session_closed) {
                 printf("Session closed\n");
                 closed = true;
             }
         }
     }
-    uint64_t end_time = get_time();
+    uint64_t end_time = get_usec_time();
     printf("Received %lu bytes over %f seconds at %.02f Mbit/s\n", data_received, (end_time - start_time) / 1000000.0,
            (data_received * 8.0) / (end_time - start_time));
 }
