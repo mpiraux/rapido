@@ -91,6 +91,76 @@ void run_server(rapido_session_t *session) {
     }
 }
 
+struct st_http_context {
+    bool has_parsed_headers;
+    bool has_parsed_content_length;
+    bool response_is_complete;
+    size_t content_length;
+    size_t response_offset;
+    uint8_t *response_body;
+};
+
+ssize_t seek_next_char(char *data, size_t len, char c) {
+    for (int i = 0; i < len; i++) {
+        if (data[i] == c) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void handle_http(uint8_t *read_ptr, size_t read_len, struct st_http_context *ctx) {
+    size_t offset = 0;
+    while (!ctx->has_parsed_headers && offset < read_len) {
+        if (read_len >= 16 && memcmp(read_ptr + offset, "Content-Length: ", 16) == 0) {
+            assert(!ctx->has_parsed_content_length && "Content-Length already parsed!");
+            offset += 16;
+            ssize_t next_eol = seek_next_char(read_ptr + offset, read_len - offset, '\n');
+            assert(next_eol != -1 && "handle_http() does not support fragmented header");
+            char *end = NULL;
+            ctx->content_length = strtol(read_ptr + offset, &end, 10);
+            assert(read_ptr + offset != end && read_ptr + offset + next_eol - 1 == end);
+            offset += next_eol;  // To handle when this header is the last one
+            ctx->has_parsed_content_length = true;
+        } else {
+            ssize_t next_eol = seek_next_char(read_ptr + offset, read_len - offset, '\n');
+            assert(next_eol != -1 && "handle_http() does not support fragmented header");
+            offset += next_eol + 1;
+            if (seek_next_char(read_ptr + offset, read_len - offset, '\n') == 1 && read_ptr[offset] == '\r') {
+                offset += 2;
+                ctx->has_parsed_headers = true;
+                assert(ctx->response_body == NULL);
+                ctx->response_body = malloc(ctx->content_length);
+                assert(ctx->response_body != NULL);
+            }
+        }
+    }
+    if (ctx->has_parsed_headers && ctx->response_offset < ctx->content_length) {
+        size_t copy_len = min(read_len - offset, ctx->content_length - ctx->response_offset);
+        memcpy(ctx->response_body + ctx->response_offset, read_ptr + offset, copy_len);
+        ctx->response_offset += copy_len;
+        offset += copy_len;
+    }
+    if (ctx->has_parsed_headers && ctx->response_offset == ctx->content_length) {
+        SHA256_CTX sha_ctx = {0};
+        uint8_t hash[SHA256_DIGEST_LENGTH];
+        SHA256_Init(&sha_ctx);
+        SHA256_Update(&sha_ctx, ctx->response_body, ctx->content_length);
+        SHA256_Final(hash, &sha_ctx);
+        char hash_str[(SHA256_DIGEST_LENGTH*2) + 1];
+        tohex(hash, sizeof(hash), hash_str);
+
+        printf("Parsed a %zu-byte long HTTP response with sha256sum %s\n", ctx->content_length, hash_str);
+        free(ctx->response_body);
+        memset(ctx, 0, sizeof(struct st_http_context));
+        if (offset < read_len) {
+            handle_http(read_ptr + offset, read_len - offset, ctx);
+            return;
+        }
+    }
+    assert(offset == read_len);
+};
+
 void enqueue_get_request(rapido_session_t *session, rapido_stream_id_t stream, const char *get_path) {
     char *server_name = ptls_get_server_name(session->tls);
     rapido_add_to_stream(session, stream, "GET ", 4);
@@ -116,6 +186,7 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
     uint64_t start_time = get_usec_time();
     uint64_t data_received = 0;
     bool closed = false;
+    struct st_http_context http_ctx = {0};
     rapido_connection_id_t extra_connection = 0;
     while (!closed && data_received < data_to_receive) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
@@ -125,9 +196,13 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
             if (notification->notification_type == rapido_new_stream) {
                 printf("New stream from server\n");
             } else if (!has_read && notification->notification_type == rapido_stream_has_data) {
+                assert(notification->stream_id == 0);
                 size_t read_len = UINT64_MAX;
-                rapido_read_stream(session, notification->stream_id, &read_len);
-                data_received += read_len;
+                uint8_t *read_ptr = rapido_read_stream(session, notification->stream_id, &read_len);
+                if (read_len != -1) {
+                    handle_http(read_ptr, read_len, &http_ctx);
+                    data_received += read_len;
+                }
                 has_read = true;
             } else if (!extra_connection && notification->notification_type == rapido_new_remote_address) {
                 printf("Creating a new connection to the secondary address advertised by the server\n");
