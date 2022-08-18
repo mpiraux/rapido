@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <string.h>
 #include <netinet/in.h>
+#include <linux/tcp.h>
 #include <errno.h>
 #include <poll.h>
 #include <time.h>
@@ -1987,6 +1988,20 @@ void *rapido_connection_get_app_ptr(rapido_session_t *session, rapido_connection
     rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
     assert(connection);
     return connection->app_ptr;
+}
+
+void rapido_connection_get_info(rapido_session_t * session, rapido_connection_id_t connection_id, rapido_connection_info_t *info) {
+    rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
+    assert(connection);
+
+    struct tcp_info sock_info;
+    socklen_t info_len = sizeof(sock_info);
+    getsockopt(connection->socket, IPPROTO_TCP, TCP_INFO, &sock_info, &info_len);
+    assert(info_len == sizeof(sock_info));
+    info->smoothed_rtt = sock_info.tcpi_rtt;
+    info->congestion_window = sock_info.tcpi_snd_cwnd * sock_info.tcpi_snd_mss;
+    info->bytes_queued_for_sending = sock_info.tcpi_notsent_bytes;
+    QLOG(session, "connection", "connection_info", "", "{\"smoothed_rtt\": \"%lu\", \"congestion_window\": \"%lu\", \"bytes_queued_for_sending\": \"%lu\"}", info->smoothed_rtt, info->congestion_window, info->bytes_queued_for_sending);
 }
 
 

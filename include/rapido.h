@@ -211,6 +211,16 @@ typedef struct {
     void *app_ptr;
 } rapido_connection_t;
 
+#define rapido_time_to_send(conn_info, bytes_len) ((((((uint64_t) bytes_len) * 1000000ul) / (conn_info).congestion_window) * (conn_info).smoothed_rtt) / 1000000ul)
+#define rapido_time_to_drain(conn_info) (rapido_time_to_send(conn_info, (conn_info).bytes_queued_for_sending))
+#define rapido_time_to_transfer(conn_info, bytes_len) (rapido_time_to_drain(conn_info) + rapido_time_to_send(conn_info, bytes_len) + (conn_info).smoothed_rtt)
+
+typedef struct {
+    uint64_t smoothed_rtt;
+    uint64_t congestion_window;
+    uint64_t bytes_queued_for_sending;
+} rapido_connection_info_t;
+
 typedef struct {
     int socket;
     ptls_context_t *tls_ctx;
@@ -331,6 +341,8 @@ void rapido_prepare_data(rapido_session_t *session, rapido_connection_id_t conne
 void rapido_connection_set_app_ptr(rapido_session_t *session, rapido_connection_id_t connection_id, void *app_ptr);
 /** Gets an application pointer associated with the given connection. */
 void *rapido_connection_get_app_ptr(rapido_session_t *session, rapido_connection_id_t connection_id);
+/** Returns TCP-level information on the given connection */
+void rapido_connection_get_info(rapido_session_t * session, rapido_connection_id_t connection_id, rapido_connection_info_t *info);
 
 /** Deallocates the memory zones referenced in this session structure. */
 int rapido_session_free(rapido_session_t *session);
