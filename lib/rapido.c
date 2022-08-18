@@ -542,11 +542,9 @@ int rapido_range_buffer_write(rapido_range_buffer_t *receive, size_t offset, voi
         size_t new_cap = receive->buffer.capacity * 2; // TODO: Find the right coeff instead
         receive->buffer.data = reallocarray(receive->buffer.data, new_cap, 1);
         todo(receive->buffer.data == NULL);
-        size_t wrap_len = receive->buffer.capacity - receive->buffer.offset; // The length after which the space left wraps around
-                                                                             // the end of the buffer.
-        memcpy(receive->buffer.data + receive->buffer.capacity, receive->buffer.data + wrap_len,
-               receive->buffer.capacity - wrap_len); // Always copies what is before the offset to the back of the buffer without
-                                                     // discerning whether it is actually used, for simplicity.
+        memcpy(receive->buffer.data + receive->buffer.capacity, receive->buffer.data,
+               receive->buffer.offset); // Always copies what is before the offset to the back of the buffer without
+                                        // discerning whether it is actually used, for simplicity.
         receive->buffer.capacity = new_cap;
     }
     size_t real_offset = (receive->buffer.offset + write_offset) % receive->buffer.capacity; // The wrapped write_offset.
