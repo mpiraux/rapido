@@ -912,14 +912,19 @@ int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t co
     return 0;
 }
 
+void rapido_stream_init(rapido_session_t *session, rapido_stream_t *stream) {
+    memset(stream, 0, sizeof(rapido_stream_t));
+    rapido_range_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
+    rapido_buffer_init(&stream->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
+    rapido_queue_init(&stream->write_callbacks, sizeof(rapido_stream_write_cb_t), 64);
+}
+
 rapido_stream_id_t rapido_open_stream(rapido_session_t *session) {
     rapido_stream_id_t next_stream_id = session->next_stream_id;
     session->next_stream_id += 2;
     rapido_stream_t *stream = rapido_array_add(&session->streams, next_stream_id);
-    memset(stream, 0, sizeof(rapido_stream_t));
+    rapido_stream_init(session, stream);
     stream->stream_id = next_stream_id;
-    rapido_range_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
-    rapido_buffer_init(&stream->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
     QLOG(session, "api", "rapido_open_stream", "", "{\"stream_id\": \"%d\"}", next_stream_id);
     return next_stream_id;
 }
@@ -1080,10 +1085,8 @@ int rapido_process_stream_frame(rapido_session_t *session, rapido_stream_frame_t
     if (stream == NULL) {
         assert(CLIENT_STREAM(frame->stream_id) == session->is_server);
         stream = rapido_array_add(&session->streams, frame->stream_id);
-        memset(stream, 0, sizeof(rapido_stream_t));
+        rapido_stream_init(session, stream);
         stream->stream_id = frame->stream_id;
-        rapido_range_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
-        rapido_buffer_init(&stream->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
         rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
         notification->notification_type = rapido_new_stream;
         notification->stream_id = frame->stream_id;
