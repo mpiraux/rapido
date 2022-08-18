@@ -950,6 +950,17 @@ int rapido_add_to_stream(rapido_session_t *session, rapido_stream_id_t stream_id
     QLOG(session, "api", "rapido_add_to_stream", "", "{\"stream_id\": \"%d\", \"len\": \"%zu\"}", stream_id, len);
     return 0;
 }
+int rapido_add_to_stream_notify(rapido_session_t *session, rapido_stream_id_t stream_id, void *data, size_t len, void *app_ctx) {
+    rapido_add_to_stream(session, stream_id, data, len);
+    rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
+    assert(stream != NULL);
+    rapido_stream_write_cb_t *cb = rapido_queue_push(&stream->write_callbacks);
+    assert(cb != NULL);
+    cb->offset = stream->write_offset + stream->send_buffer.size;
+    cb->app_ctx = app_ctx;
+    QLOG(session, "api", "rapido_add_to_stream_notify", "", "{\"stream_id\": \"%d\", \"len\": \"%zu\", \"offset\": \"%lu\"}", stream_id, len, cb->offset);
+    return 0;
+}
 int rapido_set_stream_producer(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_stream_producer_t producer,
                                void *producer_ctx) {
     rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
@@ -1017,6 +1028,18 @@ int rapido_prepare_stream_frame(rapido_session_t *session, rapido_stream_t *stre
         stream->fin_sent = true;
     }
     stream->write_offset += payload_len;
+
+    rapido_stream_write_cb_t *cb = NULL;
+    while ((cb = rapido_queue_peek(&stream->write_callbacks))) {
+        if (cb->offset <= stream->write_offset) {
+            rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
+            notification->notification_type = rapido_stream_data_was_written;
+            notification->app_ctx = cb->app_ctx;
+            rapido_queue_pop(&stream->write_callbacks);
+        } else {
+            break;
+        }
+    }
 Exit:
     *len = consumed;
     return 0;
@@ -2238,6 +2261,7 @@ int rapido_session_free(rapido_session_t *session) {
     rapido_array_iter(&session->streams, i, rapido_stream_t * stream, {
         rapido_range_buffer_free(&stream->read_buffer);
         rapido_buffer_free(&stream->send_buffer);
+        rapido_queue_free(&stream->write_callbacks);
     });
     ptls_get_traffic_protection(session->tls, 0)->aead = NULL;
     ptls_get_traffic_protection(session->tls, 1)->aead = NULL;

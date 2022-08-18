@@ -233,6 +233,11 @@ typedef struct {
 typedef uint8_t *(*rapido_stream_producer_t)(rapido_session_t *, rapido_stream_id_t, void *, uint64_t, size_t *);
 
 typedef struct {
+    uint64_t offset;
+    void *app_ctx;
+} rapido_stream_write_cb_t;
+
+typedef struct {
     rapido_stream_id_t stream_id;
 
     set_t connections;
@@ -249,6 +254,7 @@ typedef struct {
 
     rapido_stream_producer_t producer;
     void *producer_ctx;
+    rapido_queue_t write_callbacks;
 
     uint64_t bytes_received;
     uint64_t bytes_sent;
@@ -261,6 +267,7 @@ typedef struct {
         rapido_connection_closed,
         rapido_new_stream,
         rapido_stream_has_data,
+        rapido_stream_data_was_written,
         rapido_stream_closed,
         rapido_new_remote_address,
         rapido_session_closed,
@@ -270,6 +277,7 @@ typedef struct {
         rapido_connection_id_t connection_id;
         rapido_stream_id_t stream_id;
         rapido_address_id_t address_id;
+        void *app_ctx;
     };
 } rapido_application_notification_t;
 
@@ -312,6 +320,8 @@ int rapido_attach_stream(rapido_session_t *session, rapido_stream_id_t stream_id
 int rapido_remove_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
 /** Adds the given data to the end of the stream. */
 int rapido_add_to_stream(rapido_session_t *session, rapido_stream_id_t stream_id, void *data, size_t len);
+/** Adds the given data to the end of the stream and registers a notification containing the given application context when the data has been written in frames. */
+int rapido_add_to_stream_notify(rapido_session_t *session, rapido_stream_id_t stream_id, void *data, size_t len, void *app_ctx);
 /** Sets the given function and associated context as a data producer for this stream. */
 int rapido_set_stream_producer(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_stream_producer_t producer,
                                void *producer_ctx);
