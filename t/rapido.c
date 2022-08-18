@@ -109,7 +109,7 @@ ssize_t seek_next_char(char *data, size_t len, char c) {
     return -1;
 }
 
-void handle_http(uint8_t *read_ptr, size_t read_len, struct st_http_context *ctx) {
+int handle_http(uint8_t *read_ptr, size_t read_len, struct st_http_context *ctx) {
     size_t offset = 0;
     while (!ctx->has_parsed_headers && offset < read_len) {
         if (read_len >= 16 && memcmp(read_ptr + offset, "Content-Length: ", 16) == 0) {
@@ -143,7 +143,7 @@ void handle_http(uint8_t *read_ptr, size_t read_len, struct st_http_context *ctx
     }
     if (ctx->has_parsed_headers && ctx->response_offset == ctx->content_length) {
         SHA256_CTX sha_ctx = {0};
-        uint8_t hash[SHA256_DIGEST_LENGTH];
+        uint8_t hash[SHA256_DIGEST_LENGTH] = {0};
         SHA256_Init(&sha_ctx);
         SHA256_Update(&sha_ctx, ctx->response_body, ctx->content_length);
         SHA256_Final(hash, &sha_ctx);
@@ -154,11 +154,12 @@ void handle_http(uint8_t *read_ptr, size_t read_len, struct st_http_context *ctx
         free(ctx->response_body);
         memset(ctx, 0, sizeof(struct st_http_context));
         if (offset < read_len) {
-            handle_http(read_ptr + offset, read_len - offset, ctx);
-            return;
+            return handle_http(read_ptr + offset, read_len - offset, ctx) + 1;
         }
+        return 1;
     }
     assert(offset == read_len);
+    return 0;
 };
 
 void enqueue_get_request(rapido_session_t *session, rapido_stream_id_t stream, const char *get_path) {
@@ -188,6 +189,7 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
     bool closed = false;
     struct st_http_context http_ctx = {0};
     rapido_connection_id_t extra_connection = 0;
+    size_t no_requests_received = 0;
     while (!closed && data_received < data_to_receive) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
         bool has_read = false;
@@ -199,9 +201,11 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
                 assert(notification->stream_id == 0);
                 size_t read_len = UINT64_MAX;
                 uint8_t *read_ptr = rapido_read_stream(session, notification->stream_id, &read_len);
-                if (read_len != -1) {
-                    handle_http(read_ptr, read_len, &http_ctx);
+                while (read_len > 0) {
+                    no_requests_received += handle_http(read_ptr, read_len, &http_ctx);
                     data_received += read_len;
+                    read_len = UINT64_MAX;
+                    read_ptr = rapido_read_stream(session, notification->stream_id, &read_len);
                 }
                 has_read = true;
             } else if (!extra_connection && notification->notification_type == rapido_new_remote_address) {
