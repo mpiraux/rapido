@@ -269,7 +269,6 @@ void *rapido_array_push(rapido_array_t *array) {
 size_t rapido_array_index(rapido_array_t *array, void *ptr) {
     assert((uint8_t *) ptr >= (uint8_t *) array->data);
     size_t offset = ((uint8_t *) ptr) - ((uint8_t *) array->data);
-    printf("offset: %zu\n", offset);
     assert(offset % (1 + array->item_size) == 1);
     return (offset - 1) / (1 + array->item_size);
 }
