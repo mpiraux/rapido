@@ -206,7 +206,7 @@ void parse_tls_record_header(const uint8_t *data, uint8_t *type, uint16_t *versi
     }
 }
 
-bool is_tls_record_complete(const uint8_t *data, size_t data_len, size_t *missing_len) {
+bool is_tls_record_complete(const uint8_t *data, size_t data_len, size_t *missing_len, size_t *cleartext_len) {
     if (!data || !missing_len) {
         return false;
     }
@@ -220,6 +220,9 @@ bool is_tls_record_complete(const uint8_t *data, size_t data_len, size_t *missin
             *missing_len = TLS_RECORD_HEADER_LEN + length - data_len;
         } else {
             *missing_len = 0;
+        }
+        if (cleartext_len) {
+            *cleartext_len = length - 17;
         }
         return *missing_len == 0;
     }
@@ -1802,7 +1805,8 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
     size_t recvd = *len;
     while (processed < recvd) {
         size_t record_missing_len = 0;
-        bool is_record_complete = is_tls_record_complete(buffer + processed, recvd - processed, &record_missing_len);
+        size_t record_cleartext_len = 0;
+        bool is_record_complete = is_tls_record_complete(buffer + processed, recvd - processed, &record_missing_len, &record_cleartext_len);
         if (!is_record_complete) {
             size_t additional_len = record_missing_len;
             uint8_t *additional_data = rapido_buffer_peek(&connection->receive_buffer, recvd, &additional_len);
@@ -1818,8 +1822,9 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
         uint8_t plaintext_buf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
         ptls_buffer_t plaintext = {0};
         ptls_buffer_init(&plaintext, plaintext_buf, sizeof(plaintext_buf));
-        *len = recvd - processed;
+        *len = min(recvd - processed, record_cleartext_len + 22);
         int ret = ptls_receive(session->tls, &plaintext, buffer + processed, len);
+        assert(plaintext.is_allocated == 0);
         processed += *len;
         if (ret && PTLS_ERROR_TO_ALERT(ret) == PTLS_ALERT_CLOSE_NOTIFY) {
             session->is_closed = true;
