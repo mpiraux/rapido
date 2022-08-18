@@ -183,6 +183,10 @@ typedef struct {
     struct st_ptls_traffic_protection_t *decryption_ctx;
     struct st_ptls_traffic_protection_t *own_decryption_ctx; // Cryptographic material to decrypt the records we sent when
                                                              // retransmitting
+    struct {
+        ptls_buffer_t rec;
+        ptls_buffer_t mess;
+    } tls_recvbuf;  // Used by picotls for reassembling fragmented TLS records
 
     rapido_buffer_t receive_buffer;
     bool receive_buffer_fragmented;

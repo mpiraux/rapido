@@ -4429,6 +4429,24 @@ void ptls_set_traffic_protection(ptls_t *tls, struct st_ptls_traffic_protection_
     memcpy(is_dec ? &tls->traffic_protection.dec : &tls->traffic_protection.enc, prot, sizeof(struct st_ptls_traffic_protection_t));
 }
 
+void ptls_get_recvbuf(ptls_t *tls, ptls_buffer_t *rec, ptls_buffer_t *mess) {
+    if (rec) {
+        *rec = tls->recvbuf.rec;
+    }
+    if (mess) {
+        *mess = tls->recvbuf.mess;
+    }
+}
+
+void ptls_set_recvbuf(ptls_t *tls, ptls_buffer_t *rec, ptls_buffer_t *mess) {
+    if (rec) {
+        tls->recvbuf.rec = *rec;
+    }
+    if (mess) {
+        tls->recvbuf.mess = *mess;
+    }
+}
+
 const char *ptls_get_server_name(ptls_t *tls)
 {
     return tls->server_name;

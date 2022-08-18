@@ -1766,6 +1766,7 @@ int rapido_client_process_handshake(rapido_session_t *session, rapido_connection
 void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len) {
     rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
     ptls_set_traffic_protection(session->tls, connection->decryption_ctx, 1);
+    ptls_set_recvbuf(session->tls, &connection->tls_recvbuf.rec, &connection->tls_recvbuf.mess);
     size_t processed = 0;
     size_t recvd = *len;
     while (processed < recvd) {
@@ -1851,6 +1852,7 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
         connection->last_received_record_sequence = ptls_get_traffic_protection(session->tls, 1)->seq - 1;
     }
     connection->decryption_ctx->seq = ptls_get_traffic_protection(session->tls, 1)->seq;
+    ptls_get_recvbuf(session->tls, &connection->tls_recvbuf.rec, &connection->tls_recvbuf.mess);
     connection->stats.bytes_received += *len;
 }
 

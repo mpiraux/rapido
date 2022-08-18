@@ -1174,6 +1174,14 @@ struct st_ptls_traffic_protection_t *ptls_get_traffic_protection(ptls_t *tls, in
  * installs the traffic protection for encryption or decryption
  */
 void ptls_set_traffic_protection(ptls_t *tls, struct st_ptls_traffic_protection_t *prot, int is_dec);
+/*
+ * returns the receive buffers used by picotls for record reassembly
+ */
+void ptls_get_recvbuf(ptls_t *tls, ptls_buffer_t *rec, ptls_buffer_t *mess);
+/*
+ * sets the receive buffers used by picotls for record reassembly
+ */
+void ptls_set_recvbuf(ptls_t *tls, ptls_buffer_t *rec, ptls_buffer_t *mess);
 /**
  * returns the server-name (NULL if SNI is not used or failed to negotiate)
  */
