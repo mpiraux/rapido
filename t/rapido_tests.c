@@ -225,6 +225,38 @@ void test_range_list() {
     ok(rapido_trim_range(&list, 10) == -1);
 }
 
+void test_range_buffer() {
+    rapido_range_buffer_t buf;
+    size_t str_len = strlen("Hello, world!");
+    rapido_range_buffer_init(&buf, str_len);
+    ok(rapido_range_buffer_write(&buf, 7, "world!", strlen("world!")) == 0);
+    size_t len = -1;
+    ok(rapido_range_buffer_get(&buf, &len) == NULL);
+    ok(len == 0);
+    ok(rapido_range_buffer_write(&buf, 0, "Hello, ", strlen("Hello, ")) == 0);
+    len = -1;
+    void *ptr = rapido_range_buffer_get(&buf, &len);
+    ok(ptr != NULL && len == str_len);
+    ok(memcmp(ptr, "Hello, world!", str_len) == 0);
+    rapido_range_buffer_free(&buf);
+
+    rapido_range_buffer_init(&buf, str_len);
+    ok(rapido_range_buffer_write(&buf, 7, "world!", strlen("world!")) == 0);
+    len = -1;
+    ok(rapido_range_buffer_get(&buf, &len) == NULL);
+    ok(len == 0);
+    ok(rapido_range_buffer_write(&buf, 0, "Hel", strlen("Hel")) == 0);
+    len = -1;
+    ok(rapido_range_buffer_get(&buf, &len) != NULL);
+    ok(len == strlen("Hel"));
+    len = -1;
+    ok(rapido_range_buffer_write(&buf, 3, "lo, ", strlen("lo, ")) == 0);
+    ptr = rapido_range_buffer_get(&buf, &len);
+    ok(ptr != NULL && len == str_len - strlen("Hel"));
+    ok(memcmp(ptr, "lo, world!", str_len - strlen("Hel")) == 0);
+    rapido_range_buffer_free(&buf);
+}
+
 void test_large_transfer() {
     rapido_session_t *client = rapido_new_session(ctx, false, "localhost", stderr);
     rapido_session_t *server = rapido_new_session(ctx, true, "localhost", stderr);
@@ -910,6 +942,7 @@ void test_rapido() {
     subtest("test_local_address_api", test_local_address_api);
     subtest("test_local_address_server", test_local_address_server);
     subtest("test_range_list", test_range_list);
+    subtest("test_range_buffer", test_range_buffer);
     subtest("test_simple_stream_transfer", test_simple_stream_transfer);
     subtest("test_large_transfer", test_large_transfer);
     subtest("test_join", test_join);

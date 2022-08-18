@@ -6,5 +6,9 @@ int rapido_add_range(rapido_range_list_t *list, uint64_t low, uint64_t high);
 void rapido_peek_range(rapido_range_list_t *list, uint64_t *low, uint64_t *high);
 uint64_t rapido_trim_range(rapido_range_list_t *list, uint64_t limit);
 int rapido_prepare_stream_frame(rapido_session_t *session, rapido_stream_t *stream, uint8_t *buf, size_t *len);
+void rapido_range_buffer_init(rapido_range_buffer_t *receive, size_t capacity);
+int rapido_range_buffer_write(rapido_range_buffer_t *receive, size_t offset, void *input, size_t len);
+void *rapido_range_buffer_get(rapido_range_buffer_t *receive, size_t *len);
+void rapido_range_buffer_free(rapido_range_buffer_t *receive);
 
 #endif // PICOTLS_RAPIDO_INTERNALS_H
