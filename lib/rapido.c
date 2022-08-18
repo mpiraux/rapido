@@ -930,7 +930,7 @@ int rapido_attach_stream(rapido_session_t *session, rapido_stream_id_t stream_id
     }
     return 0;
 }
-int rapido_remove_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id) {
+int rapido_detach_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id) {
     assert(stream_id < SET_LEN && connection_id < SET_LEN);
     rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
     assert(stream != NULL);

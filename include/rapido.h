@@ -317,7 +317,7 @@ rapido_stream_id_t rapido_open_stream(rapido_session_t *session);
 /** Marks the connection as eligible to send content of this stream. */
 int rapido_attach_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
 /** Removes the mark of elibility of this connection for sending the content of this stream. */
-int rapido_remove_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
+int rapido_detach_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id);
 /** Adds the given data to the end of the stream. */
 int rapido_add_to_stream(rapido_session_t *session, rapido_stream_id_t stream_id, void *data, size_t len);
 /** Adds the given data to the end of the stream and registers a notification containing the given application context when the data has been written in frames. */
