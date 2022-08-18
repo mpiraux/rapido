@@ -1626,11 +1626,11 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
                    connection->tls_properties.server.tls_session_id.len);
             if (server) {
                 QLOG(server, "server", "connection_state_change", "",
-                     "{\"state\": \"received_ch\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}}", connection->socket,
+                     "{\"state\": \"received_ch\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}", connection->socket,
                      connection->local_address_id);
             } else {
                 QLOG(session, "session", "connection_state_change", "",
-                     "{\"state\": \"received_ch\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}}", connection->socket,
+                     "{\"state\": \"received_ch\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}", connection->socket,
                      connection->local_address_id);
             }
         }
@@ -1639,7 +1639,7 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
             int tls_session_id_sequence = -1;
             if (session == NULL) { // Is the connection coming from the server or session socket ?
                 QLOG(server, "server", "connection_state_change", "",
-                     "{\"state\": \"received_cf\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}}", connection->socket,
+                     "{\"state\": \"received_cf\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}", connection->socket,
                      connection->local_address_id);
                 rapido_array_iter(&server->sessions, i, session, {
                     rapido_array_iter(&session->tls_session_ids, j, uint8_t * tls_session_id, {
@@ -1655,7 +1655,7 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
                 });
             } else {
                 QLOG(session, "session", "connection_state_change", "",
-                     "{\"state\": \"received_cf\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}}", connection->socket,
+                     "{\"state\": \"received_cf\", \"socket\": \"%d\", \"local_address_id\": \"%d\"}", connection->socket,
                      connection->local_address_id);
                 rapido_array_iter(&session->tls_session_ids, i, uint8_t * tls_session_id, {
                     if (memcmp(tls_session_id, connection->tls_session_id, TLS_SESSION_ID_LEN) == 0) {
@@ -1713,7 +1713,7 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
 
             QLOG(session, "session", "connection_state_change", "",
                  "{\"state\": \"ready\", \"socket\": \"%d\", \"local_address_id\": \"%d\", \"remote_address_id\": \"%d\", "
-                 "\"connection_id\": \"%d\"}}",
+                 "\"connection_id\": \"%d\"}",
                  new_connection->socket, new_connection->local_address_id,
                  remote_address_known ? new_connection->remote_address_id : -1, new_connection->connection_id);
 
@@ -1790,7 +1790,7 @@ int rapido_client_process_handshake(rapido_session_t *session, rapido_connection
         }
         assert(ptls_get_cipher(session->tls)->aead->iv_size >= 12);
         todo(setup_connection_crypto_context(session, connection) != 0);
-        QLOG(session, "session", "connection_state_change", "", "{\"state\": \"sent_cf\", \"connection_id\": \"%d\"}}",
+        QLOG(session, "session", "connection_state_change", "", "{\"state\": \"sent_cf\", \"connection_id\": \"%d\"}",
                 connection->connection_id);
     }
     free(tls_properties.additional_extensions);
@@ -1831,7 +1831,7 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
             session->is_closed = true;
             rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
             notification->notification_type = rapido_session_closed;
-            QLOG(session, "session", "session_state_change", "", "{\"state\": \"close_notify\"}");
+            QLOG(session, "session", "session_state_change", "", "{\"state\": \"close_notify\", \"connection_id\": \"%d\"}", connection_id);
         } else if (ret != 0) {
             printf("ret: %d\n", ret);
             todo(ret != 0);
