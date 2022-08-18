@@ -22,7 +22,7 @@ static void usage(const char *cmd) {
            "  -k key-file          specifies the credentials for signing the certificate\n"
            "  -l log-file          file to log events (incl. traffic secrets)\n"
            "  -n hostname          hostname used for certificate verification\n"
-           "  -q qlog-file         file to output qlog events\n"
+           "  -q qlog-file         file to output qlog events, use value - for stderr\n"
            "  -s download-size     amount of data to receive in GB\n"
            "  -g path              requests the given path using HTTP/0.9 over stream 0\n"
            "  -r repeat            repeat the request a given amount of times\n"
@@ -244,6 +244,7 @@ int main(int argc, char **argv) {
     const char *cert_location = NULL;
     const char *hostname = NULL;
     const char *get_path = NULL;
+    const char *qlog_filename = NULL;
     size_t no_requests = 0;
     size_t data_to_receive = 2000000000;
 
@@ -268,6 +269,7 @@ int main(int argc, char **argv) {
             hostname = optarg;
             break;
         case 'q':
+            qlog_filename = optarg;
             break;
         case 's': {
             char *endarg = NULL;
@@ -354,8 +356,20 @@ int main(int argc, char **argv) {
     }
 
     signal(SIGPIPE, SIG_IGN);
+    FILE *qlog_file = NULL;
+    if (qlog_filename) {
+        if (memcmp(qlog_filename, "-", 1) == 0) {
+            qlog_file = stderr;
+        } else {
+            qlog_file = fopen(qlog_filename, "w");
+            if (!qlog_file) {
+                perror("Could not open qlog file");
+                exit(1);
+            }
+        }
+    }
 
-    rapido_session_t *session = rapido_new_session(&ctx, is_server, hostname ? hostname : host, stderr);
+    rapido_session_t *session = rapido_new_session(&ctx, is_server, hostname ? hostname : host, qlog_file);
     if (is_server) {
         rapido_add_address(session, (struct sockaddr *)&sa, salen);
         if (extra_salen > 0) {
