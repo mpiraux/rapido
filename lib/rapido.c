@@ -505,19 +505,19 @@ void rapido_peek_range(rapido_range_list_t *list, uint64_t *low, uint64_t *high)
     }
 }
 
-/** Removes ranges below or equal to the given value. Returns the largest value within a range removed, -1 if no range was removed
+/** Removes the lowest range below or equal to the given value. Returns the largest value within the range removed, -1 if no range was removed
  */
 uint64_t rapido_trim_range(rapido_range_list_t *list, uint64_t limit) {
     uint64_t offset = -1;
-    for (int i = 0; i < list->size; i++) {
-        struct rapido_range_item *r = list->ranges + i;
-        if (r->low <= limit && limit < r->high) {
+    struct rapido_range_item *r = list->ranges;
+    if (list->size > 0 && r->low <= limit) {
+        if (r->high <= limit) {
+            offset = r->high;
+            memmove(list->ranges, list->ranges + 1, (list->size - 1) * sizeof(struct rapido_range_item));
+            list->size--;
+        } else {
             offset = limit;
             r->low = limit;
-        } else if (r->high <= limit) {
-            offset = r->high;
-            memmove(list->ranges + i, list->ranges + i + 1, (list->size - i - 1) * sizeof(struct rapido_range_item));
-            list->size--;
         }
     }
     return offset;
@@ -558,8 +558,12 @@ int rapido_range_buffer_write(rapido_range_buffer_t *receive, size_t offset, voi
 }
 
 /** Returns a pointer to a memory zone at the start of the buffer of at most *len bytes.
- * The zone is released from the buffer.*/
+ * The zone is released from the buffer. */
 void *rapido_range_buffer_get(rapido_range_buffer_t *receive, size_t *len) {
+    if (receive->ranges.size == 0 || receive->ranges.ranges->low > receive->read_offset) {
+        *len = 0;
+        return NULL;
+    }
     size_t limit = max(*len, receive->read_offset + *len);
     size_t read_offset = rapido_trim_range(&receive->ranges, limit);
     void *ptr = NULL;
@@ -568,6 +572,9 @@ void *rapido_range_buffer_get(rapido_range_buffer_t *receive, size_t *len) {
         size_t wrap_offset = receive->buffer.capacity - receive->buffer.offset;
         *len = min(*len, wrap_offset);
         ptr = receive->buffer.data + receive->buffer.offset;
+        if (receive->read_offset + *len < read_offset) {
+            rapido_add_range(&receive->ranges, receive->read_offset + *len, read_offset);
+        }
         receive->read_offset += *len;
         receive->buffer.offset = (receive->buffer.offset + *len) % receive->buffer.capacity;
     } else {
