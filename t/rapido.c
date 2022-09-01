@@ -198,11 +198,12 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
             if (notification->notification_type == rapido_new_stream) {
                 printf("New stream from server\n");
             } else if (!has_read && notification->notification_type == rapido_stream_has_data) {
-                assert(notification->stream_id == 0);
                 size_t read_len = UINT64_MAX;
                 uint8_t *read_ptr = rapido_read_stream(session, notification->stream_id, &read_len);
                 while (read_len > 0) {
-                    no_requests_received += handle_http(read_ptr, read_len, &http_ctx);
+                    if (notification->stream_id == 0) {
+                        no_requests_received += handle_http(read_ptr, read_len, &http_ctx);
+                    }
                     data_received += read_len;
                     read_len = UINT64_MAX;
                     read_ptr = rapido_read_stream(session, notification->stream_id, &read_len);
