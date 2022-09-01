@@ -1,7 +1,7 @@
 rapido
 ===
 
-rapido is a minimal implementation of TCPLS.
+rapido is a minimal implementation of TCPLS atop picotls. It follows the [TCPLS IETF draft](https://datatracker.ietf.org/doc/draft-piraux-tcpls/) specification.
 
 Building rapido
 ---
