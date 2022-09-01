@@ -355,7 +355,7 @@ int main(int argc, char **argv) {
 
     struct sockaddr_storage extra_sa;
     socklen_t extra_salen;
-    if (resolve_address((struct sockaddr *)&sa, &salen, host, port, sa.ss_family == AF_INET ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP) != 0) {
+    if (resolve_address((struct sockaddr *)&extra_sa, &extra_salen, host, port, sa.ss_family == AF_INET ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP) != 0) {
         extra_salen = 0;
     }
 
