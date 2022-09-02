@@ -256,7 +256,7 @@ int main(int argc, char **argv) {
     const char *get_path = NULL;
     const char *qlog_filename = NULL;
     size_t no_requests = 0;
-    size_t data_to_receive = 2000000000;
+    size_t data_to_receive = 10000000;
 
     while ((ch = getopt(argc, argv, "c:k:l:n:q:s:g:r:y:h")) != -1) {
         switch (ch) {
