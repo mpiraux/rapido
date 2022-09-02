@@ -311,6 +311,8 @@ int rapido_run_network(rapido_session_t *session, int timeout);
 int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id_t connection_id, set_t connections);
 /** Gracefully closes the connection. */
 int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t connection_id);
+/** Gracefully closes the session and send the TLS alert on the given connection. */
+int rapido_close_session(rapido_session_t *session, rapido_connection_id_t connection_id);
 
 /** Add a new stream to the session. */
 rapido_stream_id_t rapido_open_stream(rapido_session_t *session);

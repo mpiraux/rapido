@@ -224,6 +224,11 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
     uint64_t end_time = get_usec_time();
     printf("Received %lu bytes over %f seconds at %.02f Mbit/s\n", data_received, (end_time - start_time) / 1000000.0,
            (data_received * 8.0) / (end_time - start_time));
+    rapido_close_session(session, 0);
+    rapido_close_connection(session, 0);
+    if (extra_connection > 0) {
+        rapido_close_connection(session, extra_connection);
+    }
 }
 
 int main(int argc, char **argv) {

@@ -911,6 +911,21 @@ int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t co
     return 0;
 }
 
+int rapido_close_session(rapido_session_t *session, rapido_connection_id_t connection_id) {
+    rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
+    assert(connection != NULL);
+    assert(connection->socket != -1);
+    ptls_buffer_t wbuf;
+    uint8_t wbuf_small[32];
+    ptls_buffer_init(&wbuf, wbuf_small, sizeof(wbuf_small));
+    todo(ptls_send_alert(session->tls, &wbuf, PTLS_ALERT_LEVEL_WARNING, PTLS_ALERT_CLOSE_NOTIFY) != 0);
+    if (wbuf.off != 0)
+        (void)write(connection->socket, wbuf.base, wbuf.off);
+    ptls_buffer_dispose(&wbuf);
+    shutdown(connection->socket, SHUT_WR);
+    return 0;
+}
+
 void rapido_stream_init(rapido_session_t *session, rapido_stream_t *stream) {
     memset(stream, 0, sizeof(rapido_stream_t));
     rapido_range_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
@@ -1334,7 +1349,7 @@ int rapido_process_connection_reset_frame(rapido_session_t *session, rapido_conn
 
 int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection_t *connection, uint64_t current_time, bool *is_blocked) {
     if (connection->socket == -1 || !ptls_handshake_is_complete(connection->tls) ||
-        connection->sent_records.size == connection->sent_records.capacity) {
+        connection->sent_records.size == connection->sent_records.capacity || session->is_closed) {
         if (is_blocked) {
             *is_blocked = true;
         }
