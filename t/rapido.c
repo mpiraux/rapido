@@ -23,7 +23,7 @@ static void usage(const char *cmd) {
            "  -l log-file          file to log events (incl. traffic secrets)\n"
            "  -n hostname          hostname used for certificate verification\n"
            "  -q qlog-file         file to output qlog events, use value - for stderr\n"
-           "  -s download-size     amount of data to receive in GB\n"
+           "  -s download-size     amount of data to receive in MB\n"
            "  -g path              requests the given path using HTTP/0.9 over stream 0\n"
            "  -r repeat            repeat the request a given amount of times\n"
            "  -y cipher-suite      cipher-suite to be used, e.g., aes128gcmsha256 (default:\n"
@@ -278,7 +278,7 @@ int main(int argc, char **argv) {
             break;
         case 's': {
             char *endarg = NULL;
-            data_to_receive = strtol(optarg, &endarg, 10) * 1000000000;
+            data_to_receive = strtol(optarg, &endarg, 10) * 1000000;
             if (optarg == endarg) {
                 fprintf(stderr, "-s must be an integer\n");
                 return 1;
