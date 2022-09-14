@@ -1439,8 +1439,8 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
     }
 
     LOG {
-        QLOG(session, "connection", "rapido_connection_wants_to_send", "", "{\"reason\": \"%s\", \"wants_to_send\": \"%d\"}",
-             reason, wants_to_send);
+        QLOG(session, "connection", "rapido_connection_wants_to_send", "", "{\"connection_id\": \"%d\", \"reason\": \"%s\", \"wants_to_send\": \"%d\", \"is_blocked\": \"%d\"}",
+             connection->connection_id, reason, wants_to_send, is_blocked == NULL ? NULL : *is_blocked);
     };
 
     return wants_to_send;
@@ -2275,12 +2275,21 @@ int rapido_session_free(rapido_session_t *session) {
         rapido_buffer_free(&connection->send_buffer);
         rapido_queue_free(&connection->sent_records);
         rapido_queue_free(&connection->frame_queue);
-        ptls_aead_free(connection->encryption_ctx->aead);
-        free(connection->encryption_ctx);
-        ptls_aead_free(connection->decryption_ctx->aead);
-        free(connection->decryption_ctx);
-        ptls_aead_free(connection->own_decryption_ctx->aead);
-        free(connection->own_decryption_ctx);
+        if (connection->encryption_ctx) {
+            ptls_aead_free(connection->encryption_ctx->aead);
+            free(connection->encryption_ctx);
+            connection->encryption_ctx = NULL;
+        }
+        if (connection->decryption_ctx) {
+            ptls_aead_free(connection->decryption_ctx->aead);
+            free(connection->decryption_ctx);
+            connection->decryption_ctx = NULL;
+        }
+        if (connection->own_decryption_ctx) {
+            ptls_aead_free(connection->own_decryption_ctx->aead);
+            free(connection->own_decryption_ctx);
+            connection->own_decryption_ctx = NULL;
+        }
         if (connection->tls != NULL && connection->tls != session->tls) {
             ptls_free(connection->tls);
         }
