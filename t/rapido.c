@@ -190,7 +190,7 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
     struct st_http_context http_ctx = {0};
     rapido_connection_id_t extra_connection = 0;
     size_t no_requests_received = 0;
-    while (!closed && data_received < data_to_receive) {
+    while (!closed && (no_requests == 0 ? data_received < data_to_receive : no_requests_received < no_requests)) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
         bool has_read = false;
         while (session->pending_notifications.size > 0) {
@@ -214,6 +214,7 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
                 extra_connection = rapido_create_connection(session, 1, notification->address_id);
                 rapido_attach_stream(session, app_stream, extra_connection);
                 enqueue_get_request(session, app_stream, get_path);
+                no_requests++;
                 rapido_close_stream(session, app_stream);
             } else if (notification->notification_type == rapido_session_closed) {
                 printf("Session closed\n");
