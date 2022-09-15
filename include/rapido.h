@@ -1,3 +1,6 @@
+/**
+ * @file
+ */
 #ifndef rapido_h
 #define rapido_h
 
