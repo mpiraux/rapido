@@ -1,0 +1,40 @@
+\hypertarget{structrapido__range__buffer__t}{}\doxysection{rapido\+\_\+range\+\_\+buffer\+\_\+t Struct Reference}
+\label{structrapido__range__buffer__t}\index{rapido\_range\_buffer\_t@{rapido\_range\_buffer\_t}}
+
+
+A growing and cycling buffer, also tracking the ranges of bytes present in the buffer following a global read\+\_\+offset.  
+
+
+
+
+{\ttfamily \#include $<$rapido.\+h$>$}
+
+\doxysubsection*{Data Fields}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{structrapido__range__buffer__t_aa8a7529b35cb89f92f9a7a5384f490a9}\label{structrapido__range__buffer__t_aa8a7529b35cb89f92f9a7a5384f490a9}} 
+\begin{tabbing}
+xx\=xx\=xx\=xx\=xx\=xx\=xx\=xx\=xx\=\kill
+struct \{\\
+\>void $\ast$ {\bfseries data}\\
+\>size\_t {\bfseries capacity}\\
+\>size\_t {\bfseries offset}\\
+\} {\bfseries buffer}\\
+
+\end{tabbing}\item 
+\mbox{\Hypertarget{structrapido__range__buffer__t_a8f08eb0e9cb746455d4a9a738beb5435}\label{structrapido__range__buffer__t_a8f08eb0e9cb746455d4a9a738beb5435}} 
+\mbox{\hyperlink{structrapido__range__list__t}{rapido\+\_\+range\+\_\+list\+\_\+t}} {\bfseries ranges}
+\item 
+\mbox{\Hypertarget{structrapido__range__buffer__t_a1004995a60d9422322e6dc97589397f4}\label{structrapido__range__buffer__t_a1004995a60d9422322e6dc97589397f4}} 
+size\+\_\+t {\bfseries read\+\_\+offset}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+A growing and cycling buffer, also tracking the ranges of bytes present in the buffer following a global read\+\_\+offset. 
+
+The offset advances as data is read out of the buffer. Due to cycling, the buffer can allocate or return a smaller memory zone than wanted. 
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+include/\mbox{\hyperlink{rapido_8h}{rapido.\+h}}\end{DoxyCompactItemize}

@@ -1,0 +1,264 @@
+\hypertarget{rapido_8h}{}\doxysection{include/rapido.h File Reference}
+\label{rapido_8h}\index{include/rapido.h@{include/rapido.h}}
+{\ttfamily \#include $<$stdint.\+h$>$}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdbool.\+h$>$}\newline
+{\ttfamily \#include $<$unistd.\+h$>$}\newline
+{\ttfamily \#include $<$sys/socket.\+h$>$}\newline
+{\ttfamily \#include \char`\"{}picotls.\+h\char`\"{}}\newline
+\doxysubsection*{Data Structures}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structrapido__array__t}{rapido\+\_\+array\+\_\+t}}
+\begin{DoxyCompactList}\small\item\em A growing array allocating {\ttfamily capacity $\ast$ item\+\_\+size} bytes. \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{structrapido__queue__t}{rapido\+\_\+queue\+\_\+t}}
+\begin{DoxyCompactList}\small\item\em A growing and cycling queue allocating {\ttfamily capacity $\ast$ item\+\_\+size} bytes. \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{structrapido__buffer__t}{rapido\+\_\+buffer\+\_\+t}}
+\begin{DoxyCompactList}\small\item\em A growing and cycling byte buffer. \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{structrapido__range__list__t}{rapido\+\_\+range\+\_\+list\+\_\+t}}
+\begin{DoxyCompactList}\small\item\em A uin64\+\_\+t interval list, sorted by ascending order. \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{structrapido__range__list__t_1_1rapido__range__item}{rapido\+\_\+range\+\_\+list\+\_\+t\+::rapido\+\_\+range\+\_\+item}}
+\item 
+struct \mbox{\hyperlink{structrapido__range__buffer__t}{rapido\+\_\+range\+\_\+buffer\+\_\+t}}
+\begin{DoxyCompactList}\small\item\em A growing and cycling buffer, also tracking the ranges of bytes present in the buffer following a global read\+\_\+offset. \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{structrapido__record__metadata__t}{rapido\+\_\+record\+\_\+metadata\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structrapido__server__t}{rapido\+\_\+server\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structrapido__connection__t}{rapido\+\_\+connection\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structrapido__connection__info__t}{rapido\+\_\+connection\+\_\+info\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structrapido__pending__connection__t}{rapido\+\_\+pending\+\_\+connection\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structrapido__stream__write__cb__t}{rapido\+\_\+stream\+\_\+write\+\_\+cb\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structrapido__stream__t}{rapido\+\_\+stream\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structrapido__application__notification__t}{rapido\+\_\+application\+\_\+notification\+\_\+t}}
+\end{DoxyCompactItemize}
+\doxysubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{rapido_8h_aef04110debb4fc11dfad6a613ede3910}\label{rapido_8h_aef04110debb4fc11dfad6a613ede3910}} 
+\#define {\bfseries CLIENT\+\_\+\+STREAM}(sid)~(((sid)\&0x1) == 0)
+\item 
+\mbox{\Hypertarget{rapido_8h_a4d28c3a2bb9edba0f41de000cf032bb5}\label{rapido_8h_a4d28c3a2bb9edba0f41de000cf032bb5}} 
+\#define {\bfseries SERVER\+\_\+\+STREAM}(sid)~(((sid)\&0x1) == 1)
+\item 
+\mbox{\Hypertarget{rapido_8h_a154c0bfca58b791b2e8625cf8efa832c}\label{rapido_8h_a154c0bfca58b791b2e8625cf8efa832c}} 
+\#define {\bfseries SET\+\_\+\+LEN}~64
+\item 
+\mbox{\Hypertarget{rapido_8h_a55629414acfbc98c9b1d1ea5bc57eff6}\label{rapido_8h_a55629414acfbc98c9b1d1ea5bc57eff6}} 
+\#define {\bfseries SET\+\_\+\+HAS}(bs,  e)~(bs \& (1ull $<$$<$ ((uint64\+\_\+t)e)))
+\item 
+\mbox{\Hypertarget{rapido_8h_a9f14dd6114c5a730f46c14229f863087}\label{rapido_8h_a9f14dd6114c5a730f46c14229f863087}} 
+\#define {\bfseries SET\+\_\+\+ADD}(bs,  e)~bs = (bs $\vert$ (1ull $<$$<$ ((uint64\+\_\+t)e)))
+\item 
+\mbox{\Hypertarget{rapido_8h_aa2536efb03bd702a66f2942934ddada4}\label{rapido_8h_aa2536efb03bd702a66f2942934ddada4}} 
+\#define {\bfseries SET\+\_\+\+REMOVE}(bs,  e)~bs = (bs \& ($\sim$(1ull $<$$<$ ((uint64\+\_\+t)e))))
+\item 
+\mbox{\Hypertarget{rapido_8h_af72a6b34e66dee0a901c409150353655}\label{rapido_8h_af72a6b34e66dee0a901c409150353655}} 
+\#define {\bfseries SET\+\_\+\+SIZE}(bs)~\+\_\+\+\_\+builtin\+\_\+popcountll(bs)
+\item 
+\mbox{\Hypertarget{rapido_8h_a28761995391953f2a54901fda8031826}\label{rapido_8h_a28761995391953f2a54901fda8031826}} 
+\#define {\bfseries TLS\+\_\+\+SESSION\+\_\+\+ID\+\_\+\+LEN}~32
+\item 
+\#define \mbox{\hyperlink{rapido_8h_a070adfb7d6486ccc75765bd4f6d6f10f}{rapido\+\_\+array\+\_\+iter}}(a,  i,  e,  bl)
+\item 
+\mbox{\Hypertarget{rapido_8h_a91aa1eda310f8dfc9e6b0b8c2110a4ff}\label{rapido_8h_a91aa1eda310f8dfc9e6b0b8c2110a4ff}} 
+\#define {\bfseries RANGES\+\_\+\+LEN}~64
+\item 
+\#define \mbox{\hyperlink{rapido_8h_a83ffda79c13c0ed6b1da4b5685324da2}{rapido\+\_\+queue\+\_\+drain}}(q,  e,  bl)
+\item 
+\mbox{\Hypertarget{rapido_8h_a8b77ff56c0463fa8493bcad25fe33f45}\label{rapido_8h_a8b77ff56c0463fa8493bcad25fe33f45}} 
+\#define {\bfseries rapido\+\_\+time\+\_\+to\+\_\+send}(conn\+\_\+info,  bytes\+\_\+len)~((((((uint64\+\_\+t) bytes\+\_\+len) $\ast$ 1000000ul) / (conn\+\_\+info).congestion\+\_\+window) $\ast$ (conn\+\_\+info).smoothed\+\_\+rtt) / 1000000ul)
+\item 
+\mbox{\Hypertarget{rapido_8h_a3687ff45bdee30983d7354619408cf10}\label{rapido_8h_a3687ff45bdee30983d7354619408cf10}} 
+\#define {\bfseries rapido\+\_\+time\+\_\+to\+\_\+drain}(conn\+\_\+info)~(rapido\+\_\+time\+\_\+to\+\_\+send(conn\+\_\+info, (conn\+\_\+info).bytes\+\_\+queued\+\_\+for\+\_\+sending))
+\item 
+\mbox{\Hypertarget{rapido_8h_ab4abc77df1e4aa49125c10545ff865cb}\label{rapido_8h_ab4abc77df1e4aa49125c10545ff865cb}} 
+\#define {\bfseries rapido\+\_\+time\+\_\+to\+\_\+transfer}(conn\+\_\+info,  bytes\+\_\+len)~(rapido\+\_\+time\+\_\+to\+\_\+drain(conn\+\_\+info) + rapido\+\_\+time\+\_\+to\+\_\+send(conn\+\_\+info, bytes\+\_\+len) + (conn\+\_\+info).smoothed\+\_\+rtt)
+\end{DoxyCompactItemize}
+\doxysubsection*{Typedefs}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{rapido_8h_a1343afdf76dc937829b5bbf468722782}\label{rapido_8h_a1343afdf76dc937829b5bbf468722782}} 
+typedef uint32\+\_\+t {\bfseries rapido\+\_\+connection\+\_\+id\+\_\+t}
+\item 
+\mbox{\Hypertarget{rapido_8h_a4608049b48ed123b9ebf8de9cbdc3489}\label{rapido_8h_a4608049b48ed123b9ebf8de9cbdc3489}} 
+typedef uint32\+\_\+t {\bfseries rapido\+\_\+stream\+\_\+id\+\_\+t}
+\item 
+\mbox{\Hypertarget{rapido_8h_ae0c727c08955d7a1d37af6aa61940373}\label{rapido_8h_ae0c727c08955d7a1d37af6aa61940373}} 
+typedef uint8\+\_\+t {\bfseries rapido\+\_\+address\+\_\+id\+\_\+t}
+\item 
+\mbox{\Hypertarget{rapido_8h_a5b00d5e79051327ee1e2515dd18843f0}\label{rapido_8h_a5b00d5e79051327ee1e2515dd18843f0}} 
+typedef uint64\+\_\+t {\bfseries set\+\_\+t}
+\item 
+\mbox{\Hypertarget{rapido_8h_ab9ab7c1a477ac6f345cbd59fcae7f8e1}\label{rapido_8h_ab9ab7c1a477ac6f345cbd59fcae7f8e1}} 
+typedef uint8\+\_\+t $\ast$($\ast$ {\bfseries rapido\+\_\+stream\+\_\+producer\+\_\+t}) (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$, rapido\+\_\+stream\+\_\+id\+\_\+t, void $\ast$, uint64\+\_\+t, size\+\_\+t $\ast$)
+\end{DoxyCompactItemize}
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void $\ast$ \mbox{\hyperlink{rapido_8h_ab576f6e1b834023f1ef924a1964e948c}{rapido\+\_\+queue\+\_\+pop}} (\mbox{\hyperlink{structrapido__queue__t}{rapido\+\_\+queue\+\_\+t}} $\ast$queue)
+\begin{DoxyCompactList}\small\item\em Returns a pointer to an element poped from the front of the queue. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a3f4485e1a9b67bfb7653648f7f06d755}\label{rapido_8h_a3f4485e1a9b67bfb7653648f7f06d755}} 
+\mbox{\hyperlink{structrapido__server__t}{rapido\+\_\+server\+\_\+t}} $\ast$ {\bfseries rapido\+\_\+new\+\_\+server} (ptls\+\_\+context\+\_\+t $\ast$tls\+\_\+ctx, const char $\ast$server\+\_\+name, FILE $\ast$qlog\+\_\+out)
+\begin{DoxyCompactList}\small\item\em Creates a new rapido server. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ac39f3a98a444946477db9efdd6b691fa}\label{rapido_8h_ac39f3a98a444946477db9efdd6b691fa}} 
+rapido\+\_\+address\+\_\+id\+\_\+t {\bfseries rapido\+\_\+add\+\_\+server\+\_\+address} (\mbox{\hyperlink{structrapido__server__t}{rapido\+\_\+server\+\_\+t}} $\ast$server, struct sockaddr $\ast$addr, socklen\+\_\+t addr\+\_\+len, bool add\+\_\+listen\+\_\+socket)
+\begin{DoxyCompactList}\small\item\em Adds a local address to the server, and creates a listen socket bound to the address when required. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a4155ac633d0aee949834359a3f575ba3}\label{rapido_8h_a4155ac633d0aee949834359a3f575ba3}} 
+int {\bfseries rapido\+\_\+remove\+\_\+server\+\_\+address} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+address\+\_\+id\+\_\+t local\+\_\+address\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Removes a local address from the server. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ae54235d9f540c80a263be966b21b6e51}\label{rapido_8h_ae54235d9f540c80a263be966b21b6e51}} 
+int {\bfseries rapido\+\_\+run\+\_\+server\+\_\+network} (\mbox{\hyperlink{structrapido__server__t}{rapido\+\_\+server\+\_\+t}} $\ast$server, int timeout)
+\begin{DoxyCompactList}\small\item\em Runs the server for some time. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a51ecd063e04c0406be6931aa516a42d9}\label{rapido_8h_a51ecd063e04c0406be6931aa516a42d9}} 
+\mbox{\hyperlink{structrapido__application__notification__t}{rapido\+\_\+application\+\_\+notification\+\_\+t}} $\ast$ {\bfseries rapido\+\_\+next\+\_\+server\+\_\+notification} (\mbox{\hyperlink{structrapido__server__t}{rapido\+\_\+server\+\_\+t}} $\ast$server, size\+\_\+t $\ast$session\+\_\+index)
+\begin{DoxyCompactList}\small\item\em Pops the next notification and gets the index of the corresponding session. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a7ba9cfad71b499651089ee58f6618e38}\label{rapido_8h_a7ba9cfad71b499651089ee58f6618e38}} 
+\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$ {\bfseries rapido\+\_\+new\+\_\+session} (ptls\+\_\+context\+\_\+t $\ast$tls\+\_\+ctx, bool is\+\_\+server, const char $\ast$server\+\_\+name, FILE $\ast$qlog\+\_\+out)
+\begin{DoxyCompactList}\small\item\em Creates a new rapido session. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a08294642b525b8b9b91c4e2887b8d9b1}\label{rapido_8h_a08294642b525b8b9b91c4e2887b8d9b1}} 
+rapido\+\_\+address\+\_\+id\+\_\+t {\bfseries rapido\+\_\+add\+\_\+address} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, struct sockaddr $\ast$addr, socklen\+\_\+t addr\+\_\+len)
+\begin{DoxyCompactList}\small\item\em Adds a local address to the session. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a31c9dc330a7e5a13641115625c4f4c08}\label{rapido_8h_a31c9dc330a7e5a13641115625c4f4c08}} 
+rapido\+\_\+address\+\_\+id\+\_\+t {\bfseries rapido\+\_\+add\+\_\+remote\+\_\+address} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, struct sockaddr $\ast$addr, socklen\+\_\+t addr\+\_\+len)
+\begin{DoxyCompactList}\small\item\em Adds a remote address to the session. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a5a3cc13755a239acdb67005a991bbeb1}\label{rapido_8h_a5a3cc13755a239acdb67005a991bbeb1}} 
+int {\bfseries rapido\+\_\+remove\+\_\+address} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+address\+\_\+id\+\_\+t local\+\_\+address\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Removes a local address from the session. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_aa846f85e804f50d6c46ae2f88a20c05d}\label{rapido_8h_aa846f85e804f50d6c46ae2f88a20c05d}} 
+rapido\+\_\+connection\+\_\+id\+\_\+t {\bfseries rapido\+\_\+create\+\_\+connection} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, uint8\+\_\+t local\+\_\+address\+\_\+id, uint8\+\_\+t remote\+\_\+address\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Creates a new connection for the session with the given local and remote address. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a9a3c01f48e7a58dbbb6f459337183d81}\label{rapido_8h_a9a3c01f48e7a58dbbb6f459337183d81}} 
+int {\bfseries rapido\+\_\+run\+\_\+network} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, int timeout)
+\begin{DoxyCompactList}\small\item\em Runs the session for some time. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a70fe1e38a89fe0596cfcf31fd17977be}\label{rapido_8h_a70fe1e38a89fe0596cfcf31fd17977be}} 
+int {\bfseries rapido\+\_\+retransmit\+\_\+connection} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id, set\+\_\+t connections)
+\begin{DoxyCompactList}\small\item\em Marks the given set of connections as eligible for retransmitting the content of the given connection. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a55398b7699e88e8bd9eb0ebd8731c941}\label{rapido_8h_a55398b7699e88e8bd9eb0ebd8731c941}} 
+int {\bfseries rapido\+\_\+close\+\_\+connection} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Gracefully closes the connection. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ad4254ecc5a7b990b1b224241a6298db3}\label{rapido_8h_ad4254ecc5a7b990b1b224241a6298db3}} 
+int {\bfseries rapido\+\_\+close\+\_\+session} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Gracefully closes the session and send the TLS alert on the given connection. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ab91ebbeefc40218e30ce2838c8c35c20}\label{rapido_8h_ab91ebbeefc40218e30ce2838c8c35c20}} 
+rapido\+\_\+stream\+\_\+id\+\_\+t {\bfseries rapido\+\_\+open\+\_\+stream} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session)
+\begin{DoxyCompactList}\small\item\em Add a new stream to the session. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a78748359d3301081c8687a38d12274e3}\label{rapido_8h_a78748359d3301081c8687a38d12274e3}} 
+int {\bfseries rapido\+\_\+attach\+\_\+stream} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+stream\+\_\+id\+\_\+t stream\+\_\+id, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Marks the connection as eligible to send content of this stream. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a8acb570dd973acd5d7115a7287d7534d}\label{rapido_8h_a8acb570dd973acd5d7115a7287d7534d}} 
+int {\bfseries rapido\+\_\+detach\+\_\+stream} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+stream\+\_\+id\+\_\+t stream\+\_\+id, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Removes the mark of elibility of this connection for sending the content of this stream. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a42cacfeabffd4f7399d6c1f4dc5c5399}\label{rapido_8h_a42cacfeabffd4f7399d6c1f4dc5c5399}} 
+int {\bfseries rapido\+\_\+add\+\_\+to\+\_\+stream} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+stream\+\_\+id\+\_\+t stream\+\_\+id, void $\ast$data, size\+\_\+t len)
+\begin{DoxyCompactList}\small\item\em Adds the given data to the end of the stream. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a10869a2828fda08bb1d75f76b47db470}\label{rapido_8h_a10869a2828fda08bb1d75f76b47db470}} 
+int {\bfseries rapido\+\_\+add\+\_\+to\+\_\+stream\+\_\+notify} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+stream\+\_\+id\+\_\+t stream\+\_\+id, void $\ast$data, size\+\_\+t len, void $\ast$app\+\_\+ctx)
+\begin{DoxyCompactList}\small\item\em Adds the given data to the end of the stream and registers a notification containing the given application context when the data has been written in frames. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_adeb03ea1301a09ba3b38f1cf014efa10}\label{rapido_8h_adeb03ea1301a09ba3b38f1cf014efa10}} 
+int {\bfseries rapido\+\_\+set\+\_\+stream\+\_\+producer} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+stream\+\_\+id\+\_\+t stream\+\_\+id, rapido\+\_\+stream\+\_\+producer\+\_\+t producer, void $\ast$producer\+\_\+ctx)
+\begin{DoxyCompactList}\small\item\em Sets the given function and associated context as a data producer for this stream. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ac92eec246e0ca90a858dd304c685ede6}\label{rapido_8h_ac92eec246e0ca90a858dd304c685ede6}} 
+void $\ast$ {\bfseries rapido\+\_\+read\+\_\+stream} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+stream\+\_\+id\+\_\+t stream\+\_\+id, size\+\_\+t $\ast$len)
+\begin{DoxyCompactList}\small\item\em Returns a pointer to read at most the $\ast$len following bytes from this stream. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a09d20f0b82b3a09768a9752ed83d3316}\label{rapido_8h_a09d20f0b82b3a09768a9752ed83d3316}} 
+int {\bfseries rapido\+\_\+close\+\_\+stream} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+stream\+\_\+id\+\_\+t stream\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Marks the end of this stream. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a627bbe1a59d547d6ffc71a25fd54fdfb}\label{rapido_8h_a627bbe1a59d547d6ffc71a25fd54fdfb}} 
+int {\bfseries rapido\+\_\+session\+\_\+accept\+\_\+new\+\_\+connection} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, int accept\+\_\+fd, rapido\+\_\+address\+\_\+id\+\_\+t local\+\_\+address\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Adds a given file descriptor as a new connection to a session. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ae08a4c6e9d19031969ce4e151d12fabc}\label{rapido_8h_ae08a4c6e9d19031969ce4e151d12fabc}} 
+int {\bfseries rapido\+\_\+server\+\_\+accept\+\_\+new\+\_\+connection} (\mbox{\hyperlink{structrapido__server__t}{rapido\+\_\+server\+\_\+t}} $\ast$server, int accept\+\_\+fd, rapido\+\_\+address\+\_\+id\+\_\+t local\+\_\+address\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Accepts from a given file descriptor and adds the new connection to the server. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_afe295e4b2470b0d5c604ef93ffbb03ed}\label{rapido_8h_afe295e4b2470b0d5c604ef93ffbb03ed}} 
+size\+\_\+t {\bfseries rapido\+\_\+server\+\_\+add\+\_\+new\+\_\+connection} (\mbox{\hyperlink{structrapido__array__t}{rapido\+\_\+array\+\_\+t}} $\ast$pending\+\_\+connections, ptls\+\_\+context\+\_\+t $\ast$tls\+\_\+ctx, ptls\+\_\+t $\ast$tls, const char $\ast$server\+\_\+name, int conn\+\_\+fd, rapido\+\_\+address\+\_\+id\+\_\+t local\+\_\+address\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Adds the new connection to pending connections and returns its index within the latter array. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ac3dfd5adecd89b0239c7a935fd862752}\label{rapido_8h_ac3dfd5adecd89b0239c7a935fd862752}} 
+int {\bfseries rapido\+\_\+client\+\_\+process\+\_\+handshake} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id, uint8\+\_\+t $\ast$buffer, size\+\_\+t $\ast$len)
+\begin{DoxyCompactList}\small\item\em Processes data received by a client during the handshake and returns whether the handshake is complete. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_aab3f281b7d966cd3f7dce118ed10653c}\label{rapido_8h_aab3f281b7d966cd3f7dce118ed10653c}} 
+void {\bfseries rapido\+\_\+server\+\_\+process\+\_\+handshake} (\mbox{\hyperlink{structrapido__server__t}{rapido\+\_\+server\+\_\+t}} $\ast$server, \mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, \mbox{\hyperlink{structrapido__array__t}{rapido\+\_\+array\+\_\+t}} $\ast$pending\+\_\+connections, size\+\_\+t pending\+\_\+connection\+\_\+index, uint8\+\_\+t $\ast$buffer, size\+\_\+t $\ast$len, ptls\+\_\+buffer\+\_\+t $\ast$handshake\+\_\+buffer, \mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$$\ast$created\+\_\+session, \mbox{\hyperlink{structrapido__connection__t}{rapido\+\_\+connection\+\_\+t}} $\ast$$\ast$created\+\_\+connection)
+\begin{DoxyCompactList}\small\item\em Processes data received by a server during the handshake. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a003f0c9b6c8bcbab5f52b43c950523d3}\label{rapido_8h_a003f0c9b6c8bcbab5f52b43c950523d3}} 
+void {\bfseries rapido\+\_\+process\+\_\+incoming\+\_\+data} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id, uint64\+\_\+t current\+\_\+time, uint8\+\_\+t $\ast$buffer, size\+\_\+t $\ast$len)
+\begin{DoxyCompactList}\small\item\em Processes incoming data received after the handshake. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ace8532bf0784fea7316bd35e4e08ab11}\label{rapido_8h_ace8532bf0784fea7316bd35e4e08ab11}} 
+int {\bfseries rapido\+\_\+connection\+\_\+wants\+\_\+to\+\_\+send} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, \mbox{\hyperlink{structrapido__connection__t}{rapido\+\_\+connection\+\_\+t}} $\ast$connection, uint64\+\_\+t current\+\_\+time, bool $\ast$is\+\_\+blocked)
+\begin{DoxyCompactList}\small\item\em Returns whether the given connection wants to send data. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a963ea98e0acad055648feecdd66224f3}\label{rapido_8h_a963ea98e0acad055648feecdd66224f3}} 
+void {\bfseries rapido\+\_\+prepare\+\_\+data} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id, uint64\+\_\+t current\+\_\+time, uint8\+\_\+t $\ast$buffer, size\+\_\+t $\ast$len)
+\begin{DoxyCompactList}\small\item\em Prepares data to send. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ab8616f46e78fa1e773935c496eb437f0}\label{rapido_8h_ab8616f46e78fa1e773935c496eb437f0}} 
+void {\bfseries rapido\+\_\+connection\+\_\+set\+\_\+app\+\_\+ptr} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id, void $\ast$app\+\_\+ptr)
+\begin{DoxyCompactList}\small\item\em Sets an application pointer associated with the given connection. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_acca4eb1c25a65c7ad820176bf588b8ce}\label{rapido_8h_acca4eb1c25a65c7ad820176bf588b8ce}} 
+void $\ast$ {\bfseries rapido\+\_\+connection\+\_\+get\+\_\+app\+\_\+ptr} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Gets an application pointer associated with the given connection. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a90ed18fc8d5ba0c4582bf504f3f0ef34}\label{rapido_8h_a90ed18fc8d5ba0c4582bf504f3f0ef34}} 
+void {\bfseries rapido\+\_\+connection\+\_\+get\+\_\+info} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session, rapido\+\_\+connection\+\_\+id\+\_\+t connection\+\_\+id, \mbox{\hyperlink{structrapido__connection__info__t}{rapido\+\_\+connection\+\_\+info\+\_\+t}} $\ast$info)
+\begin{DoxyCompactList}\small\item\em Returns TCP-\/level information on the given connection. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_ac96ddce737182da7ba9bb1db89bc38b1}\label{rapido_8h_ac96ddce737182da7ba9bb1db89bc38b1}} 
+int {\bfseries rapido\+\_\+session\+\_\+free} (\mbox{\hyperlink{structrapido__session__t}{rapido\+\_\+session\+\_\+t}} $\ast$session)
+\begin{DoxyCompactList}\small\item\em Deallocates the memory zones referenced in this session structure. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{rapido_8h_a9407224c78fd5ef6519919297ca1e24c}\label{rapido_8h_a9407224c78fd5ef6519919297ca1e24c}} 
+int {\bfseries rapido\+\_\+server\+\_\+free} (\mbox{\hyperlink{structrapido__server__t}{rapido\+\_\+server\+\_\+t}} $\ast$server)
+\begin{DoxyCompactList}\small\item\em Deallocates the memory zones referenced in this server structure. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Macro Definition Documentation}
+\mbox{\Hypertarget{rapido_8h_a070adfb7d6486ccc75765bd4f6d6f10f}\label{rapido_8h_a070adfb7d6486ccc75765bd4f6d6f10f}} 
+\index{rapido.h@{rapido.h}!rapido\_array\_iter@{rapido\_array\_iter}}
+\index{rapido\_array\_iter@{rapido\_array\_iter}!rapido.h@{rapido.h}}
+\doxysubsubsection{\texorpdfstring{rapido\_array\_iter}{rapido\_array\_iter}}
+{\footnotesize\ttfamily \#define rapido\+\_\+array\+\_\+iter(\begin{DoxyParamCaption}\item[{}]{a,  }\item[{}]{i,  }\item[{}]{e,  }\item[{}]{bl }\end{DoxyParamCaption})}
+
+{\bfseries Value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{    \textcolor{keywordflow}{do} \{                                                                                                                           \(\backslash\)}
+\DoxyCodeLine{        for (\textcolor{keywordtype}{int} i = 0; i < (a)-\/>capacity; i++) \{                                                                                  \(\backslash\)}
+\DoxyCodeLine{            size\_t offset = (1 + (a)-\/>item\_size) * i;                                                                              \(\backslash\)}
+\DoxyCodeLine{            if ((a)-\/>data[offset] == \textcolor{keyword}{true}) \{                                                                                       \(\backslash\)}
+\DoxyCodeLine{                e = (\textcolor{keywordtype}{void} *)(a)-\/>data + offset + 1;                                                                                \(\backslash\)}
+\DoxyCodeLine{                bl                                                                                                                 \(\backslash\)}
+\DoxyCodeLine{            \}                                                                                                                      \(\backslash\)}
+\DoxyCodeLine{        \}                                                                                                                          \(\backslash\)}
+\DoxyCodeLine{    \} \textcolor{keywordflow}{while} (0)}
+
+\end{DoxyCode}
+\mbox{\Hypertarget{rapido_8h_a83ffda79c13c0ed6b1da4b5685324da2}\label{rapido_8h_a83ffda79c13c0ed6b1da4b5685324da2}} 
+\index{rapido.h@{rapido.h}!rapido\_queue\_drain@{rapido\_queue\_drain}}
+\index{rapido\_queue\_drain@{rapido\_queue\_drain}!rapido.h@{rapido.h}}
+\doxysubsubsection{\texorpdfstring{rapido\_queue\_drain}{rapido\_queue\_drain}}
+{\footnotesize\ttfamily \#define rapido\+\_\+queue\+\_\+drain(\begin{DoxyParamCaption}\item[{}]{q,  }\item[{}]{e,  }\item[{}]{bl }\end{DoxyParamCaption})}
+
+{\bfseries Value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{    \textcolor{keywordflow}{do} \{                                                                                                                           \(\backslash\)}
+\DoxyCodeLine{        while ((q)-\/>size) \{                                                                                                        \(\backslash\)}
+\DoxyCodeLine{            e = \mbox{\hyperlink{rapido_8h_ab576f6e1b834023f1ef924a1964e948c}{rapido\_queue\_pop}}(q);                                                                                               \(\backslash\)}
+\DoxyCodeLine{            bl                                                                                                                     \(\backslash\)}
+\DoxyCodeLine{        \}                                                                                                                          \(\backslash\)}
+\DoxyCodeLine{    \} \textcolor{keywordflow}{while} (0)}
+
+\end{DoxyCode}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{rapido_8h_ab576f6e1b834023f1ef924a1964e948c}\label{rapido_8h_ab576f6e1b834023f1ef924a1964e948c}} 
+\index{rapido.h@{rapido.h}!rapido\_queue\_pop@{rapido\_queue\_pop}}
+\index{rapido\_queue\_pop@{rapido\_queue\_pop}!rapido.h@{rapido.h}}
+\doxysubsubsection{\texorpdfstring{rapido\_queue\_pop()}{rapido\_queue\_pop()}}
+{\footnotesize\ttfamily void $\ast$ rapido\+\_\+queue\+\_\+pop (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structrapido__queue__t}{rapido\+\_\+queue\+\_\+t}} $\ast$}]{queue }\end{DoxyParamCaption})}
+
+
+
+Returns a pointer to an element poped from the front of the queue. 
+
+Note\+: Pushing on the queue can overwrite the memory zone returned. 
