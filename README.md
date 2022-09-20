@@ -46,6 +46,11 @@ To connect over IPv4 to the server:
 ./rapido -s 10 -n localhost 130.104.229.29 443
 ```
 
+Documentation & API
+---
+
+The documentation and API can be found at https://mpiraux.github.io/rapido/. The `rapido.h` header file defines the functions and data structures available to the application leveraging TCPLS. 
+
 picotls
 ===
 
