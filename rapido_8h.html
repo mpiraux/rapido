@@ -225,8 +225,12 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_remove_address<
 <tr class="separator:a5a3cc13755a239acdb67005a991bbeb1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa846f85e804f50d6c46ae2f88a20c05d"><td class="memItemLeft" align="right" valign="top"><a id="aa846f85e804f50d6c46ae2f88a20c05d" name="aa846f85e804f50d6c46ae2f88a20c05d"></a>
 rapido_connection_id_t&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_create_connection</b> (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, uint8_t local_address_id, uint8_t remote_address_id)</td></tr>
-<tr class="memdesc:aa846f85e804f50d6c46ae2f88a20c05d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a new connection for the session with the given local and remote address. <br /></td></tr>
+<tr class="memdesc:aa846f85e804f50d6c46ae2f88a20c05d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a new connection for the session with the given local and remote addresses. <br /></td></tr>
 <tr class="separator:aa846f85e804f50d6c46ae2f88a20c05d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4089d338de73d94718c60ab7922f56fd"><td class="memItemLeft" align="right" valign="top"><a id="a4089d338de73d94718c60ab7922f56fd" name="a4089d338de73d94718c60ab7922f56fd"></a>
+rapido_connection_id_t&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_client_add_connection</b> (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, int fd, uint8_t local_address_id, uint8_t remote_address_id)</td></tr>
+<tr class="memdesc:a4089d338de73d94718c60ab7922f56fd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Adds the given file descriptor to the session as a new connection with the given local and remote addresses. <br /></td></tr>
+<tr class="separator:a4089d338de73d94718c60ab7922f56fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9a3c01f48e7a58dbbb6f459337183d81"><td class="memItemLeft" align="right" valign="top"><a id="a9a3c01f48e7a58dbbb6f459337183d81" name="a9a3c01f48e7a58dbbb6f459337183d81"></a>
 int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_run_network</b> (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, int timeout)</td></tr>
 <tr class="memdesc:a9a3c01f48e7a58dbbb6f459337183d81"><td class="mdescLeft">&#160;</td><td class="mdescRight">Runs the session for some time. <br /></td></tr>
