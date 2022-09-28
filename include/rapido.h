@@ -306,8 +306,10 @@ rapido_address_id_t rapido_add_remote_address(rapido_session_t *session, struct 
 /** Removes a local address from the session. */
 int rapido_remove_address(rapido_session_t *session, rapido_address_id_t local_address_id);
 
-/** Creates a new connection for the session with the given local and remote address. */
+/** Creates a new connection for the session with the given local and remote addresses. */
 rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8_t local_address_id, uint8_t remote_address_id);
+/** Adds the given file descriptor to the session as a new connection with the given local and remote addresses. */
+rapido_connection_id_t rapido_client_add_connection(rapido_session_t *session, int fd, uint8_t local_address_id, uint8_t remote_address_id);
 /** Runs the session for some time. */
 int rapido_run_network(rapido_session_t *session, int timeout);
 /** Marks the given set of connections as eligible for retransmitting the content of the given connection. */

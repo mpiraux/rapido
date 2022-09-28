@@ -823,7 +823,7 @@ int rapido_remove_address(rapido_session_t *session, rapido_address_id_t local_a
     return rapido_array_delete(&session->local_addresses, local_address_id);
 }
 
-rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8_t local_address_id, uint8_t remote_address_id) {
+rapido_connection_id_t rapido_client_add_connection(rapido_session_t *session, int fd, uint8_t local_address_id, uint8_t remote_address_id) {
     assert(!session->is_server);
     struct sockaddr *local_address = (struct sockaddr *)rapido_array_get(&session->local_addresses, local_address_id);
     struct sockaddr *remote_address = (struct sockaddr *)rapido_array_get(&session->remote_addresses, remote_address_id);
@@ -840,17 +840,7 @@ rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8
     connection->connection_id = connection_id;
     connection->local_address_id = local_address_id;
     connection->remote_address_id = remote_address_id;
-    connection->socket = socket(remote_address->sa_family, SOCK_STREAM, 0);
-    todo_perror(connection->socket == -1);
-    int yes = 1;
-    todo_perror(setsockopt(connection->socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)));
-    if (local_address != NULL) {
-        todo_perror(bind(connection->socket, local_address, SOCKADDR_LEN(local_address)));
-    }
-    int ret = connect(connection->socket, remote_address, SOCKADDR_LEN(remote_address));
-    if (ret && errno != EINPROGRESS) {
-        todo_perror(ret);
-    }
+    connection->socket = fd;
 
     if (local_address == NULL) {
         local_address = rapido_array_add(&session->local_addresses, local_address_id);
@@ -888,7 +878,7 @@ rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8
     tls_properties.additional_extensions[1].type = UINT16_MAX;
     tls_properties.client.tls_session_id =
         ptls_iovec_init(rapido_array_get(&session->tls_session_ids, connection_id), TLS_SESSION_ID_LEN);
-    ret = ptls_handshake(connection->tls, &handshake_buffer, NULL, 0, &tls_properties);
+    int ret = ptls_handshake(connection->tls, &handshake_buffer, NULL, 0, &tls_properties);
     free(tls_properties.additional_extensions);
 
     todo(ret != PTLS_ERROR_IN_PROGRESS);
@@ -901,6 +891,30 @@ rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8
          "{\"connection_id\": \"%d\", \"local_address_id\": \"%d\", \"remote_address_id\": \"%d\"}", connection_id,
          local_address_id, remote_address_id);
     return connection_id;
+}
+
+rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8_t local_address_id, uint8_t remote_address_id) {
+    assert(!session->is_server);
+    struct sockaddr *local_address = (struct sockaddr *)rapido_array_get(&session->local_addresses, local_address_id);
+    struct sockaddr *remote_address = (struct sockaddr *)rapido_array_get(&session->remote_addresses, remote_address_id);
+    assert(local_address != NULL || local_address_id == session->next_local_address_id);
+    assert(remote_address != NULL);
+    assert(local_address == NULL || local_address->sa_family == remote_address->sa_family);
+
+
+    int fd = socket(remote_address->sa_family, SOCK_STREAM, 0);
+    todo_perror(fd == -1);
+    int yes = 1;
+    todo_perror(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)));
+    if (local_address != NULL) {
+        todo_perror(bind(fd, local_address, SOCKADDR_LEN(local_address)));
+    }
+    int ret = connect(fd, remote_address, SOCKADDR_LEN(remote_address));
+    if (ret && errno != EINPROGRESS) {
+        todo_perror(ret);
+    }
+
+    return rapido_client_add_connection(session, fd, local_address_id, remote_address_id);
 }
 
 int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t connection_id) {
