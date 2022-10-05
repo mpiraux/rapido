@@ -653,6 +653,7 @@ void rapido_connection_init(rapido_session_t *session, rapido_connection_t *conn
     memset(connection, 0, sizeof(rapido_connection_t));
     connection->last_received_record_sequence = -1;
     connection->socket = -1;
+    connection->peer_address_len = sizeof(struct sockaddr_storage);
     rapido_buffer_init(&connection->receive_buffer, 32 * TLS_MAX_RECORD_SIZE);
     rapido_buffer_init(&connection->send_buffer, 32 * TLS_MAX_RECORD_SIZE);
     rapido_queue_init(&connection->sent_records, sizeof(rapido_record_metadata_t), 512);
@@ -841,6 +842,7 @@ rapido_connection_id_t rapido_client_add_connection(rapido_session_t *session, i
     connection->local_address_id = local_address_id;
     connection->remote_address_id = remote_address_id;
     connection->socket = fd;
+    todo_perror(getpeername(connection->socket, (struct sockaddr *)&connection->peer_address, &connection->peer_address_len) == -1);
 
     if (local_address == NULL) {
         local_address = rapido_array_add(&session->local_addresses, local_address_id);
@@ -1307,8 +1309,7 @@ int rapido_process_new_address_frame(rapido_session_t *session, rapido_new_addre
         if (connection->socket != -1) {
             struct sockaddr_storage peer_address;
             socklen_t peer_address_len = sizeof(struct sockaddr_storage);
-            todo_perror(getpeername(connection->socket, (struct sockaddr *)&peer_address, &peer_address_len) == -1);
-            if (sockaddr_equal((struct sockaddr *)address, (struct sockaddr *)&peer_address)) {
+            if (sockaddr_equal((struct sockaddr *)address, (struct sockaddr *)&connection->peer_address)) {
                 connection->remote_address_id = frame->address_id;
             }
         }
@@ -1726,12 +1727,10 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
             new_connection->connection_id = tls_session_id_sequence;
             new_connection->tls = session->tls;
             new_connection->local_address_id = connection->local_address_id;
-            struct sockaddr_storage peer_address;
-            socklen_t peer_address_len = sizeof(struct sockaddr_storage);
-            todo_perror(getpeername(new_connection->socket, (struct sockaddr *)&peer_address, &peer_address_len) == -1);
+            todo_perror(getpeername(new_connection->socket, (struct sockaddr *)&new_connection->peer_address, &new_connection->peer_address_len) == -1);
             bool remote_address_known = false;
             rapido_array_iter(&session->remote_addresses, i, struct sockaddr_storage * remote_address, {
-                if (sockaddr_equal((struct sockaddr *)remote_address, (struct sockaddr *)&peer_address)) {
+                if (sockaddr_equal((struct sockaddr *)remote_address, (struct sockaddr *)&new_connection->peer_address)) {
                     new_connection->remote_address_id = (rapido_address_id_t) i;
                     remote_address_known = true;
                 }

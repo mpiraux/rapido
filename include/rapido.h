@@ -178,6 +178,9 @@ typedef struct {
     int socket;
     rapido_address_id_t local_address_id;
     rapido_address_id_t remote_address_id;
+    struct sockaddr_storage peer_address;
+    socklen_t peer_address_len;
+    bool is_closed;
 
     set_t attached_streams;
     rapido_queue_t frame_queue;
