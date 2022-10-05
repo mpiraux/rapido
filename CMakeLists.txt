@@ -25,7 +25,7 @@ IF (WITH_FUSION)
     MESSAGE(STATUS "Enabling 'fusion' AES-GCM engine")
 ENDIF ()
 
-SET(CMAKE_C_FLAGS "-std=c99 -Wall -O2 -g ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
+SET(CMAKE_C_FLAGS "-std=c99 -Wall -O2 -g -lprofiler ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
 INCLUDE_DIRECTORIES(
     deps/cifra/src/ext
     deps/cifra/src
