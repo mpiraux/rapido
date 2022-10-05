@@ -1628,13 +1628,15 @@ int rapido_server_accept_new_connection(rapido_server_t *server, int accept_fd, 
     return 0;
 }
 
-void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections,
+int rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections,
                             size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, rapido_session_t **created_session, rapido_connection_t **created_connection) {
     uint8_t tls_session_id_buf[TLS_SESSION_ID_LEN];
     rapido_pending_connection_t *connection = rapido_array_get(pending_connections, pending_connection_index);
     connection->tls_properties.server.tls_session_id = ptls_iovec_init(tls_session_id_buf, sizeof(tls_session_id_buf));
     int ret = ptls_handshake(connection->tls, handshake_buffer, buffer, len, &connection->tls_properties);
-    todo(ret != 0 && ret != PTLS_ERROR_IN_PROGRESS);
+    if (ret == PTLS_ERROR_IN_PROGRESS) {
+        return ret;
+    }
     if (ret == 0) {
         /* ClientHello */
         if (!ptls_handshake_is_complete(connection->tls)) {
@@ -1647,7 +1649,9 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
                     has_rapido_hello = true;
                 }
             }
-            assert(has_rapido_hello);
+            if (!has_rapido_hello) {
+                return -1;
+            }
             connection->tls_properties.collected_extensions = collected_rapido_extensions;
             free(connection->tls_properties.additional_extensions);
             connection->tls_properties.additional_extensions = NULL;
@@ -1763,6 +1767,7 @@ void rapido_server_process_handshake(rapido_server_t *server, rapido_session_t *
         close(connection->socket);
         rapido_array_delete(pending_connections, pending_connection_index);
     }
+    return ret;
 }
 
 int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, rapido_array_t *pending_connections,
