@@ -931,14 +931,16 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
     rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
     assert(connection != NULL);
     assert(connection->socket != -1);
+    assert(!connection->is_closed);
     ptls_buffer_t wbuf;
     uint8_t wbuf_small[32];
     ptls_buffer_init(&wbuf, wbuf_small, sizeof(wbuf_small));
     todo(ptls_send_alert(session->tls, &wbuf, PTLS_ALERT_LEVEL_WARNING, PTLS_ALERT_CLOSE_NOTIFY) != 0);
     if (wbuf.off != 0)
-        (void)write(connection->socket, wbuf.base, wbuf.off);
+        (void)send(connection->socket, wbuf.base, wbuf.off, MSG_NOSIGNAL);
     ptls_buffer_dispose(&wbuf);
     shutdown(connection->socket, SHUT_WR);
+    connection->is_closed = true;
     return 0;
 }
 

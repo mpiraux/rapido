@@ -4325,7 +4325,7 @@ static ptls_t *new_instance(ptls_context_t *ctx, int is_server)
 
     assert(ctx->get_time != NULL && "please set ctx->get_time to `&ptls_get_time`; see #92");
 
-    if ((tls = malloc(sizeof(*tls))) == NULL)
+    if ((tls = calloc(1, sizeof(*tls))) == NULL)
         return NULL;
 
     update_open_count(ctx, 1);
