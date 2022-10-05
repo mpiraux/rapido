@@ -295,10 +295,9 @@ size_t&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_server_add_n
 int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_client_process_handshake</b> (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, rapido_connection_id_t connection_id, uint8_t *buffer, size_t *len)</td></tr>
 <tr class="memdesc:ac3dfd5adecd89b0239c7a935fd862752"><td class="mdescLeft">&#160;</td><td class="mdescRight">Processes data received by a client during the handshake and returns whether the handshake is complete. <br /></td></tr>
 <tr class="separator:ac3dfd5adecd89b0239c7a935fd862752"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aab3f281b7d966cd3f7dce118ed10653c"><td class="memItemLeft" align="right" valign="top"><a id="aab3f281b7d966cd3f7dce118ed10653c" name="aab3f281b7d966cd3f7dce118ed10653c"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_server_process_handshake</b> (<a class="el" href="structrapido__server__t.html">rapido_server_t</a> *server, <a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, <a class="el" href="structrapido__array__t.html">rapido_array_t</a> *pending_connections, size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, <a class="el" href="structrapido__session__t.html">rapido_session_t</a> **created_session, <a class="el" href="structrapido__connection__t.html">rapido_connection_t</a> **created_connection)</td></tr>
-<tr class="memdesc:aab3f281b7d966cd3f7dce118ed10653c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Processes data received by a server during the handshake. <br /></td></tr>
-<tr class="separator:aab3f281b7d966cd3f7dce118ed10653c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4f73145ce3acb6e3154fa00a3d6a254a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rapido_8h.html#a4f73145ce3acb6e3154fa00a3d6a254a">rapido_server_process_handshake</a> (<a class="el" href="structrapido__server__t.html">rapido_server_t</a> *server, <a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, <a class="el" href="structrapido__array__t.html">rapido_array_t</a> *pending_connections, size_t pending_connection_index, uint8_t *buffer, size_t *len, ptls_buffer_t *handshake_buffer, <a class="el" href="structrapido__session__t.html">rapido_session_t</a> **created_session, <a class="el" href="structrapido__connection__t.html">rapido_connection_t</a> **created_connection)</td></tr>
+<tr class="memdesc:a4f73145ce3acb6e3154fa00a3d6a254a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Processes data received by a server during the handshake.  <a href="rapido_8h.html#a4f73145ce3acb6e3154fa00a3d6a254a">More...</a><br /></td></tr>
+<tr class="separator:a4f73145ce3acb6e3154fa00a3d6a254a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a003f0c9b6c8bcbab5f52b43c950523d3"><td class="memItemLeft" align="right" valign="top"><a id="a003f0c9b6c8bcbab5f52b43c950523d3" name="a003f0c9b6c8bcbab5f52b43c950523d3"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_process_incoming_data</b> (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, rapido_connection_id_t connection_id, uint64_t current_time, uint8_t *buffer, size_t *len)</td></tr>
 <tr class="memdesc:a003f0c9b6c8bcbab5f52b43c950523d3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Processes incoming data received after the handshake. <br /></td></tr>
@@ -442,6 +441,79 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_server_free</b>
 
 <p>Returns a pointer to an element poped from the front of the queue. </p>
 <p >Note: Pushing on the queue can overwrite the memory zone returned. </p>
+
+</div>
+</div>
+<a id="a4f73145ce3acb6e3154fa00a3d6a254a" name="a4f73145ce3acb6e3154fa00a3d6a254a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4f73145ce3acb6e3154fa00a3d6a254a">&#9670;&nbsp;</a></span>rapido_server_process_handshake()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int rapido_server_process_handshake </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structrapido__server__t.html">rapido_server_t</a> *&#160;</td>
+          <td class="paramname"><em>server</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrapido__session__t.html">rapido_session_t</a> *&#160;</td>
+          <td class="paramname"><em>session</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrapido__array__t.html">rapido_array_t</a> *&#160;</td>
+          <td class="paramname"><em>pending_connections</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>pending_connection_index</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>buffer</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ptls_buffer_t *&#160;</td>
+          <td class="paramname"><em>handshake_buffer</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrapido__session__t.html">rapido_session_t</a> **&#160;</td>
+          <td class="paramname"><em>created_session</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structrapido__connection__t.html">rapido_connection_t</a> **&#160;</td>
+          <td class="paramname"><em>created_connection</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Processes data received by a server during the handshake. </p>
+<p >Returns PTLS_ERROR_IN_PROGRESS when the handshake is still progressing, -1 when TCPLS could not be used and 0 when the handshake completed. </p>
 
 </div>
 </div>

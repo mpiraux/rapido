@@ -33,7 +33,7 @@ var searchData=
   ['rapido_5fserver_5faccept_5fnew_5fconnection_30',['rapido_server_accept_new_connection',['../rapido_8h.html#ae08a4c6e9d19031969ce4e151d12fabc',1,'rapido.c']]],
   ['rapido_5fserver_5fadd_5fnew_5fconnection_31',['rapido_server_add_new_connection',['../rapido_8h.html#afe295e4b2470b0d5c604ef93ffbb03ed',1,'rapido.c']]],
   ['rapido_5fserver_5ffree_32',['rapido_server_free',['../rapido_8h.html#a9407224c78fd5ef6519919297ca1e24c',1,'rapido.c']]],
-  ['rapido_5fserver_5fprocess_5fhandshake_33',['rapido_server_process_handshake',['../rapido_8h.html#aab3f281b7d966cd3f7dce118ed10653c',1,'rapido.c']]],
+  ['rapido_5fserver_5fprocess_5fhandshake_33',['rapido_server_process_handshake',['../rapido_8h.html#a4f73145ce3acb6e3154fa00a3d6a254a',1,'rapido.c']]],
   ['rapido_5fsession_5faccept_5fnew_5fconnection_34',['rapido_session_accept_new_connection',['../rapido_8h.html#a627bbe1a59d547d6ffc71a25fd54fdfb',1,'rapido.c']]],
   ['rapido_5fsession_5ffree_35',['rapido_session_free',['../rapido_8h.html#ac96ddce737182da7ba9bb1db89bc38b1',1,'rapido.c']]],
   ['rapido_5fset_5fstream_5fproducer_36',['rapido_set_stream_producer',['../rapido_8h.html#adeb03ea1301a09ba3b38f1cf014efa10',1,'rapido.c']]]
