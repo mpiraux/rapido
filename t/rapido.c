@@ -12,7 +12,7 @@
 #include "util.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
-#define RUN_NETWORK_TIMEOUT 1000
+#define RUN_NETWORK_TIMEOUT 100
 
 static void usage(const char *cmd) {
     printf("Usage: %s [options] host port\n"
@@ -25,6 +25,7 @@ static void usage(const char *cmd) {
            "  -q qlog-file         file to output qlog events, use value - for stderr\n"
            "  -s download-size     amount of data to receive in MB\n"
            "  -g path              requests the given path using HTTP/0.9 over stream 0\n"
+           "  -0                   enables the HTTP/1.0 server\n"
            "  -r repeat            repeat the request a given amount of times\n"
            "  -y cipher-suite      cipher-suite to be used, e.g., aes128gcmsha256 (default:\n"
            "                       all)\n"
@@ -57,6 +58,24 @@ static void usage(const char *cmd) {
 
 static uint8_t random_data[16384 * 64] = {42};
 
+static char *index_page = ""
+"<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\r\n"
+"<html>\r\n"
+"<head><title>rapido index page</title></head>\r\n"
+"<body>\r\n"
+"<h1>rapido index page</h1>\r\n"
+"<p>Welcome to the rapido test server</p>\r\n"
+"<\\body>\r\n"
+"<\\html>\r\n";
+
+static char* index_response = ""
+"HTTP/1.1 200 OK\r\n"
+"Server: rapido/0.0.1\r\n"
+"Content-Type: text/html\r\n"
+"Content-Length: 203\r\n"
+"\r\n";
+
+
 static uint64_t get_usec_time() {
     struct timespec tv;
     assert(clock_gettime(CLOCK_REALTIME, &tv) == 0);
@@ -69,17 +88,112 @@ uint8_t *stream_produce_random_data(rapido_session_t *session, rapido_stream_id_
     return random_data;
 }
 
-void run_server(rapido_session_t *session) {
+ssize_t seek_next_char(char *data, size_t len, char c) {
+    for (int i = 0; i < len; i++) {
+        if (data[i] == c) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+struct st_http_server_context {
+    char *method;
+    char *path;
+    char *version;
+    bool first_line_parsed;
+    char *header_host;
+    char *header_user_agent;
+    bool request_is_complete;
+};
+
+size_t handle_http_request(uint8_t *read_ptr, size_t read_len, struct st_http_server_context *ctx) {
+    size_t offset = 0;
+    while (!ctx->request_is_complete && offset < read_len) {
+        printf("offset: %zu\n", offset);
+        printf("ptr: %s", read_ptr + offset);
+        if (!ctx->first_line_parsed) {
+            ssize_t next_eol = seek_next_char(read_ptr + offset, read_len - offset, '\n');
+            assert(next_eol != -1 && "handle_http() does not support fragmented header");
+            ssize_t next_space = seek_next_char(read_ptr + offset, read_len - offset, ' ');
+            assert(next_space != -1 && next_space < next_eol && "malformed request");
+            ctx->method = strndup(read_ptr + offset, next_space);
+            offset += next_space + 1;
+            next_eol -= next_space + 1;
+            next_space = seek_next_char(read_ptr + offset, read_len - offset, ' ');
+            assert(next_space != -1 && next_space < next_eol && "malformed request");
+            ctx->path = strndup(read_ptr + offset, next_space);
+            offset += next_space + 1;
+            next_eol -= next_space + 1;
+            ctx->version = strndup(read_ptr + offset, next_eol);
+            offset += next_eol + 1;
+            assert(strcmp(ctx->method, "GET") == 0 && "other methods than GET not supported");
+            ctx->first_line_parsed = true;
+        }
+        if (ctx->first_line_parsed) {
+            if (read_len - offset >= 6 && memcmp(read_ptr + offset, "Host: ", 6) == 0) {
+                assert(!ctx->header_host && "Host already parsed!");
+                offset += 6;
+                ssize_t next_eol = seek_next_char(read_ptr + offset, read_len - offset, '\n');
+                assert(next_eol != -1 && "handle_http() does not support fragmented header");
+                ctx->header_host = strndup(read_ptr + offset, next_eol);
+                offset += next_eol + 1;
+            }
+            if (read_len - offset >= 12 && memcmp(read_ptr + offset, "User-Agent: ", 12) == 0) {
+                offset += 12;
+                ssize_t next_eol = seek_next_char(read_ptr + offset, read_len - offset, '\n');
+                assert(next_eol != -1 && "handle_http() does not support fragmented header");
+                ctx->header_user_agent = strndup(read_ptr + offset, next_eol);
+                offset += next_eol + 1;
+            }
+            {
+                ssize_t next_eol = seek_next_char(read_ptr + offset, read_len - offset, '\n');
+                assert(next_eol != -1 && "handle_http() does not support fragmented header");
+                offset += next_eol + 1;
+            }
+            if (seek_next_char(read_ptr + offset, read_len - offset, '\n') == 1 && read_ptr[offset] == '\r') {
+                offset += 2;
+                ctx->request_is_complete = true;
+            }
+        }
+    }
+    return read_len - offset;
+};
+
+void run_server(rapido_session_t *session, bool enable_http_server) {
     bool closed = false;
+    struct st_http_server_context http_ctx = {0};
     while (!closed) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
         while (session->pending_notifications.size > 0) {
             rapido_application_notification_t *notification = rapido_queue_pop(&session->pending_notifications);
             if (notification->notification_type == rapido_new_connection) {
                 printf("Accepted connection\n");
-                rapido_stream_id_t stream = rapido_open_stream(session);
-                rapido_attach_stream(session, stream, notification->connection_id);
-                rapido_set_stream_producer(session, stream, stream_produce_random_data, NULL);
+                if (!enable_http_server) {
+                    rapido_stream_id_t stream = rapido_open_stream(session);
+                    rapido_attach_stream(session, stream, notification->connection_id);
+                    rapido_set_stream_producer(session, stream, stream_produce_random_data, NULL);
+                }
+            } else if (notification->notification_type == rapido_stream_has_data) {
+                size_t read_len = UINT64_MAX;
+                uint8_t *read_ptr = rapido_read_stream(session, notification->stream_id, &read_len);
+                while (read_len > 0) {
+                    if (notification->stream_id == 0) {
+                        size_t left_to_process = 0;
+                        do {
+                            left_to_process = handle_http_request(read_ptr + left_to_process, read_len, &http_ctx);
+                            if (http_ctx.request_is_complete) {
+                                rapido_attach_stream(session, notification->stream_id, notification->connection_id);
+                                rapido_add_to_stream(session, notification->stream_id, index_response, strlen(index_response));
+                                rapido_add_to_stream(session, notification->stream_id, index_page, strlen(index_page));
+                                memset(&http_ctx, 0, sizeof(http_ctx));
+                            }
+                            read_len -= left_to_process;
+                        } while (left_to_process > 0);
+                    }
+                    read_len = UINT64_MAX;
+                    read_ptr = rapido_read_stream(session, notification->stream_id, &read_len);
+                }
             } else if (notification->notification_type == rapido_connection_closed) {
                 printf("Connection closed\n");
                 closed = true;
@@ -91,7 +205,7 @@ void run_server(rapido_session_t *session) {
     }
 }
 
-struct st_http_context {
+struct st_http_client_context {
     bool has_parsed_headers;
     bool has_parsed_content_length;
     bool response_is_complete;
@@ -100,16 +214,7 @@ struct st_http_context {
     uint8_t *response_body;
 };
 
-ssize_t seek_next_char(char *data, size_t len, char c) {
-    for (int i = 0; i < len; i++) {
-        if (data[i] == c) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-int handle_http(uint8_t *read_ptr, size_t read_len, struct st_http_context *ctx) {
+int handle_http_response(uint8_t *read_ptr, size_t read_len, struct st_http_client_context *ctx) {
     size_t offset = 0;
     while (!ctx->has_parsed_headers && offset < read_len) {
         if (read_len >= 16 && memcmp(read_ptr + offset, "Content-Length: ", 16) == 0) {
@@ -152,9 +257,9 @@ int handle_http(uint8_t *read_ptr, size_t read_len, struct st_http_context *ctx)
 
         printf("Parsed a %zu-byte long HTTP response with sha256sum %s\n", ctx->content_length, hash_str);
         free(ctx->response_body);
-        memset(ctx, 0, sizeof(struct st_http_context));
+        memset(ctx, 0, sizeof(struct st_http_client_context));
         if (offset < read_len) {
-            return handle_http(read_ptr + offset, read_len - offset, ctx) + 1;
+            return handle_http_response(read_ptr + offset, read_len - offset, ctx) + 1;
         }
         return 1;
     }
@@ -166,14 +271,14 @@ void enqueue_get_request(rapido_session_t *session, rapido_stream_id_t stream, c
     char *server_name = ptls_get_server_name(session->tls);
     rapido_add_to_stream(session, stream, "GET ", 4);
     rapido_add_to_stream(session, stream, get_path, strlen(get_path));
-    rapido_add_to_stream(session, stream, " HTTP/1.1\n", 10);
+    rapido_add_to_stream(session, stream, " HTTP/1.1\r\n", 11);
     rapido_add_to_stream(session, stream, "Host: ", 6);
     rapido_add_to_stream(session, stream, server_name, strlen(server_name));
-    rapido_add_to_stream(session, stream, "\nUser-Agent: rapido/0.0.1/", 26);
+    rapido_add_to_stream(session, stream, "\r\nUser-Agent: rapido/0.0.1/", 27);
     char stream_id_str[9] = {0};
     snprintf(stream_id_str, sizeof(stream_id_str) - 1, "%d", stream);
     rapido_add_to_stream(session, stream, stream_id_str, strlen(stream_id_str));
-    rapido_add_to_stream(session, stream, "\n\n", 2);
+    rapido_add_to_stream(session, stream, "\r\n\r\n", 4);
 }
 
 void run_client(rapido_session_t *session, size_t data_to_receive, const char *get_path, size_t no_requests) {
@@ -187,7 +292,7 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
     uint64_t start_time = get_usec_time();
     uint64_t data_received = 0;
     bool closed = false;
-    struct st_http_context http_ctx = {0};
+    struct st_http_client_context http_ctx = {0};
     rapido_connection_id_t extra_connection = 0;
     size_t no_requests_received = 0;
     while (!closed && (no_requests == 0 ? data_received < data_to_receive : no_requests_received < no_requests)) {
@@ -202,7 +307,7 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
                 uint8_t *read_ptr = rapido_read_stream(session, notification->stream_id, &read_len);
                 while (read_len > 0) {
                     if (notification->stream_id == 0) {
-                        no_requests_received += handle_http(read_ptr, read_len, &http_ctx);
+                        no_requests_received += handle_http_response(read_ptr, read_len, &http_ctx);
                     }
                     data_received += read_len;
                     read_len = UINT64_MAX;
@@ -256,10 +361,11 @@ int main(int argc, char **argv) {
     const char *hostname = NULL;
     const char *get_path = NULL;
     const char *qlog_filename = NULL;
-    size_t no_requests = 0;
+    size_t no_requests = 1;
     size_t data_to_receive = 10000000;
+    bool enable_http_server = false;
 
-    while ((ch = getopt(argc, argv, "c:k:l:n:q:s:g:r:y:h")) != -1) {
+    while ((ch = getopt(argc, argv, "c:k:l:n:q:s:g:r:y:h0")) != -1) {
         switch (ch) {
         case 'c':
             if (cert_location != NULL) {
@@ -322,6 +428,9 @@ int main(int argc, char **argv) {
         case 'h':
             usage(argv[0]);
             exit(0);
+        case '0':
+            enable_http_server = true;
+            break;
         default:
             exit(1);
         }
@@ -386,7 +495,7 @@ int main(int argc, char **argv) {
         if (extra_salen > 0) {
             rapido_add_address(session, (struct sockaddr *)&extra_sa, extra_salen);
         }
-        run_server(session);
+        run_server(session, enable_http_server);
     } else {
         rapido_address_id_t ra_id = rapido_add_remote_address(session, (struct sockaddr *)&sa, salen);
         rapido_create_connection(session, 0, ra_id);
