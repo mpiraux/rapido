@@ -935,7 +935,10 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
     ptls_buffer_t wbuf;
     uint8_t wbuf_small[32];
     ptls_buffer_init(&wbuf, wbuf_small, sizeof(wbuf_small));
+    ptls_set_traffic_protection(session->tls, connection->encryption_ctx, 0);
     todo(ptls_send_alert(session->tls, &wbuf, PTLS_ALERT_LEVEL_WARNING, PTLS_ALERT_CLOSE_NOTIFY) != 0);
+    connection->encryption_ctx->seq = ptls_get_traffic_protection(session->tls, 0)->seq;
+    assert(wbuf.is_allocated == 0);
     if (wbuf.off != 0)
         (void)send(connection->socket, wbuf.base, wbuf.off, MSG_NOSIGNAL);
     ptls_buffer_dispose(&wbuf);
