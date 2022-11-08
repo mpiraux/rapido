@@ -1783,6 +1783,11 @@ int rapido_server_handshake(rapido_server_t *server, rapido_session_t *session, 
     assert(connection->socket > -1);
     size_t recvd = recv(connection->socket, recvbuf, sizeof(recvbuf), 0);
     todo_perror(recvd == -1 && (errno == EWOULDBLOCK || errno == EAGAIN));
+    if (recvd == 0) {
+        close(connection->socket);
+        rapido_array_delete(pending_connections, pending_connection_index);
+        return 0;
+    }
     ptls_buffer_t handshake_buffer = {0};
     ptls_buffer_init(&handshake_buffer, "", 0);
     size_t consumed = recvd;
