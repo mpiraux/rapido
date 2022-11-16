@@ -304,6 +304,45 @@ void rapido_array_free(rapido_array_t *array) {
     }
 }
 
+/** Returns whether the set contains the given value. */
+bool rapido_set_has(rapido_set_t *set, uint32_t value) {
+    if (set->start > value)
+        return false;
+    return SET_HAS(set->bs, value - set->start);
+}
+
+/** Adds the given value to the set when it can contains, otherwise fails. */
+void rapido_set_add(rapido_set_t *set, uint32_t value) {
+    assert(set->start <= value);
+    if (value - set->start < SET_LEN || set->bs == 0) {
+        if (set->bs == 0) {
+            set->start = value;
+        }
+        SET_ADD(set->bs, value - set->start);
+    } else {
+        for (int i = 0; i < SET_LEN; i++) {
+            if (SET_HAS(set->bs, i)) {
+                assert(value < set->start + i + SET_LEN);
+                set->start += i;
+                set->bs = set->bs >> i;
+                break;
+            }
+        }
+        rapido_set_add(set, value);
+    }
+}
+
+/** Removes the given value from the set. */
+void rapido_set_remove(rapido_set_t *set, uint32_t value) {
+    assert(set->start <= value && value < set->start + SET_LEN);
+    SET_REMOVE(set->bs, value - set->start);
+}
+
+/** Returns the number of element in the set. */
+size_t rapido_set_size(rapido_set_t *set) {
+    return __builtin_popcountll(set->bs);
+}
+
 /** Initialises and allocates a queue of given item size and capacity */
 void rapido_queue_init(rapido_queue_t *queue, size_t item_size, size_t capacity) {
     queue->data = malloc(item_size * capacity);
@@ -964,15 +1003,14 @@ rapido_stream_id_t rapido_open_stream(rapido_session_t *session) {
     return next_stream_id;
 }
 int rapido_attach_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id) {
-    assert(stream_id < SET_LEN && connection_id < SET_LEN);
     rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
     assert(stream != NULL);
     rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
     assert(connection != NULL);
 
-    if (!SET_HAS(stream->connections, connection_id)) {
-        SET_ADD(stream->connections, connection_id);
-        SET_ADD(connection->attached_streams, stream_id);
+    if (!rapido_set_has(&stream->connections, connection_id)) {
+        rapido_set_add(&stream->connections, connection_id);
+        rapido_set_add(&connection->attached_streams, stream_id);
         QLOG(session, "api", "rapido_attach_stream", "", "{\"stream_id\": \"%d\", \"connection_id\": \"%d\"}", stream_id,
             connection_id);
     }
@@ -985,8 +1023,8 @@ int rapido_detach_stream(rapido_session_t *session, rapido_stream_id_t stream_id
     rapido_connection_t *connection = rapido_array_get(&session->connections, connection_id);
     assert(connection != NULL);
 
-    SET_REMOVE(stream->connections, connection_id);
-    SET_REMOVE(connection->attached_streams, stream_id);
+    rapido_set_remove(&stream->connections, connection_id);
+    rapido_set_remove(&connection->attached_streams, stream_id);
     QLOG(session, "api", "rapido_remove_stream", "", "{\"stream_id\": \"%d\", \"connection_id\": \"%d\"}", stream_id,
          connection_id);
     return 0;
@@ -1267,7 +1305,7 @@ int rapido_prepare_new_address_frame(rapido_session_t *session, rapido_address_i
         consumed += address_len;
         *(uint16_t *)(buf + consumed) = *SOCKADDR_PORT(address);
         consumed += sizeof(uint16_t);
-        SET_ADD(session->addresses_advertised, address_id);
+        rapido_set_add(&session->addresses_advertised, address_id);
     }
     *len = consumed;
     LOG {
@@ -1405,9 +1443,9 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
         }
     });
 
-    size_t streams_to_write = SET_SIZE(connection->attached_streams);
+    size_t streams_to_write = rapido_set_size(&connection->attached_streams);
     for (int i = 0; !wants_to_send && streams_to_write && i < SET_LEN; i++) {
-        if (SET_HAS(connection->attached_streams, i)) {
+        if (rapido_set_has(&connection->attached_streams, i)) {
             rapido_stream_t *stream = rapido_array_get(&session->streams, i);
             wants_to_send |=
                 (stream->producer && !stream->fin_set) || stream->send_buffer.size || (stream->fin_set && !stream->fin_sent);
@@ -1425,15 +1463,15 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
     }
 
     if (!wants_to_send) {
-        wants_to_send |= SET_SIZE(session->addresses_advertised) < session->local_addresses.size;
+        wants_to_send |= rapido_set_size(&session->addresses_advertised) < session->local_addresses.size;
         LOG if (wants_to_send) {
             reason = "New address to advertise";
         }
     }
 
-    if (!wants_to_send && connection->retransmit_connections) {
+    if (!wants_to_send && rapido_set_size(&connection->retransmit_connections)) {
         for (int j = 0; j < SET_LEN && !wants_to_send; j++) {
-            if (SET_HAS(connection->retransmit_connections, j)) {
+            if (rapido_set_has(&connection->retransmit_connections, j)) {
                 rapido_connection_t *source_connection = rapido_array_get(&session->connections, j);
                 if (source_connection->sent_records.size > 0) {
                     rapido_record_metadata_t *record = NULL;
@@ -1452,7 +1490,7 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
                     }
                 }
                 if (source_connection->sent_records.size == 0) {
-                    SET_REMOVE(connection->retransmit_connections, j);
+                    rapido_set_remove(&connection->retransmit_connections, j);
                 }
             }
         }
@@ -1472,9 +1510,9 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
     *is_ack_eliciting = false;
     size_t consumed = 0;
 
-    if (connection->retransmit_connections) {
+    if (rapido_set_size(&connection->retransmit_connections)) {
         for (int j = 0; j < SET_LEN && consumed < *len; j++) {
-            if (SET_HAS(connection->retransmit_connections, j)) {
+            if (rapido_set_has(&connection->retransmit_connections, j)) {
                 rapido_connection_t *source_connection = rapido_array_get(&session->connections, j);
                 rapido_queue_drain(&source_connection->sent_records, rapido_record_metadata_t * record, {
                     if (record->ack_eliciting) {
@@ -1551,7 +1589,7 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
         }
     }
 
-    if (SET_SIZE(session->addresses_advertised) < session->local_addresses.size) {
+    if (rapido_set_size(&session->addresses_advertised) < session->local_addresses.size) {
         rapido_array_iter(&session->local_addresses, i, struct sockaddr_storage * address, {
             rapido_unused(address);
             rapido_address_id_t address_id = i;
@@ -1567,9 +1605,9 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
         consumed += frame_len;
     }
 
-    size_t streams_to_write = SET_SIZE(connection->attached_streams);
+    size_t streams_to_write = rapido_set_size(&connection->attached_streams);
     for (int i = 0; consumed < *len && i < SET_LEN && streams_to_write; i++) {
-        if (SET_HAS(connection->attached_streams, i)) {
+        if (rapido_set_has(&connection->attached_streams, i)) {
             rapido_stream_t *stream = rapido_array_get(&session->streams, i);
             if ((stream->producer && !stream->fin_set) || stream->send_buffer.size || (stream->fin_set && !stream->fin_sent)) {
                 size_t frame_len = *len - consumed;
@@ -2256,16 +2294,16 @@ int rapido_run_server_network(rapido_server_t *server, int timeout) {
     return 0;
 }
 
-int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id_t connection_id, set_t connections) {
+int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id_t connection_id, rapido_set_t connections) {
     QLOG(session, "api", "rapido_retransmit_connection", "", "{\"source_connection_id\": \"%d\", \"connections\": \"%lu\"}",
          connection_id, connections);
     rapido_connection_t *source_connection = rapido_array_get(&session->connections, connection_id);
     assert(source_connection != NULL);
     for (int i = 0; i < SET_LEN; i++) {
-        if (SET_HAS(connections, i)) {
+        if (rapido_set_has(&connections, i)) {
             rapido_connection_t *destination_connection = rapido_array_get(&session->connections, i);
             assert(destination_connection != NULL);
-            SET_ADD(destination_connection->retransmit_connections, source_connection->connection_id);
+            rapido_set_add(&destination_connection->retransmit_connections, source_connection->connection_id);
         }
     }
     return 0;

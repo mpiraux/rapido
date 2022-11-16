@@ -257,6 +257,30 @@ void test_range_buffer() {
     rapido_range_buffer_free(&buf);
 }
 
+void test_set() {
+    rapido_set_t set = { 0 };
+    ok(rapido_set_size(&set) == 0);
+    rapido_set_add(&set, 0);
+    ok(rapido_set_has(&set, 0));
+    ok(rapido_set_has(&set, 1) == 0);
+    ok(rapido_set_size(&set) == 1);
+    rapido_set_remove(&set, 0);
+    ok(rapido_set_has(&set, 0) == 0);
+    ok(rapido_set_size(&set) == 0);
+    rapido_set_add(&set, 100);
+    ok(rapido_set_has(&set, 100));
+    ok(rapido_set_size(&set) == 1);
+    rapido_set_add(&set, 128);
+    ok(rapido_set_has(&set, 128));
+    ok(rapido_set_size(&set) == 2);
+    rapido_set_remove(&set, 100);
+    ok(rapido_set_size(&set) == 1);
+    rapido_set_add(&set, 180);
+    ok(rapido_set_size(&set) == 2);
+    ok(rapido_set_has(&set, 128));
+    ok(rapido_set_has(&set, 180));
+}
+
 void test_large_transfer() {
     rapido_session_t *client = rapido_new_session(ctx, false, "localhost", stderr);
     rapido_session_t *server = rapido_new_session(ctx, true, "localhost", stderr);
@@ -454,8 +478,8 @@ void test_failover() {
     notification = rapido_queue_pop(&server->pending_notifications);
     ok(notification->notification_type == rapido_connection_closed);
     ok(notification->connection_id == s_cid);
-    set_t connections = 0;
-    SET_ADD(connections, s_cid2);
+    rapido_set_t connections = { 0 };
+    rapido_set_add(&connections, s_cid2);
     ok(rapido_retransmit_connection(server, notification->connection_id, connections) == 0);
     rapido_run_network(server, RUN_NETWORK_TIMEOUT_DEFAULT);
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
@@ -943,6 +967,7 @@ void test_rapido() {
     subtest("test_local_address_server", test_local_address_server);
     subtest("test_range_list", test_range_list);
     subtest("test_range_buffer", test_range_buffer);
+    subtest("test_set", test_set);
     subtest("test_simple_stream_transfer", test_simple_stream_transfer);
     subtest("test_large_transfer", test_large_transfer);
     subtest("test_join", test_join);

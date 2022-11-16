@@ -17,16 +17,20 @@ typedef uint32_t rapido_stream_id_t;
 #define CLIENT_STREAM(sid) (((sid)&0x1) == 0)
 #define SERVER_STREAM(sid) (((sid)&0x1) == 1)
 
-typedef uint8_t rapido_address_id_t;
-typedef uint64_t set_t;
-
-#define SET_LEN 64
-#define SET_HAS(bs, e) (bs & (1ull << ((uint64_t)e)))
-#define SET_ADD(bs, e) bs = (bs | (1ull << ((uint64_t)e)))
-#define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t)e))))
-#define SET_SIZE(bs) __builtin_popcountll(bs)
-
 #define TLS_SESSION_ID_LEN 32
+
+typedef uint8_t rapido_address_id_t;
+typedef struct {
+    uint64_t bs;
+    uint32_t start;
+} rapido_set_t;
+
+#define SET_LEN 64ull
+#define SET_HAS(bs, e) (bs & (1ull << ((uint64_t)(e))))
+#define SET_ADD(bs, e) bs = (bs | (1ull << ((uint64_t)(e))))
+#define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t)e))))
+
+void rapido_set_add(rapido_set_t *set, uint32_t value);
 
 /**
  * A growing array allocating `capacity * item_size` bytes.
@@ -146,7 +150,7 @@ typedef struct {
 
     rapido_array_t local_addresses;
     rapido_address_id_t next_local_address_id;
-    set_t addresses_advertised;
+    rapido_set_t addresses_advertised;
     rapido_array_t remote_addresses;
     rapido_address_id_t next_remote_address_id;
 
@@ -182,7 +186,7 @@ typedef struct {
     socklen_t peer_address_len;
     bool is_closed;
 
-    set_t attached_streams;
+    rapido_set_t attached_streams;
     rapido_queue_t frame_queue;
 
     struct st_ptls_traffic_protection_t *encryption_ctx;
@@ -206,7 +210,7 @@ typedef struct {
     uint64_t last_receive_time;
     size_t non_ack_eliciting_count;
 
-    set_t retransmit_connections;
+    rapido_set_t retransmit_connections;
 
     struct {
         uint64_t bytes_received;
@@ -246,7 +250,7 @@ typedef struct {
 typedef struct {
     rapido_stream_id_t stream_id;
 
-    set_t connections;
+    rapido_set_t connections;
 
     rapido_range_buffer_t read_buffer;
     size_t read_fin;
@@ -316,7 +320,7 @@ rapido_connection_id_t rapido_client_add_connection(rapido_session_t *session, i
 /** Runs the session for some time. */
 int rapido_run_network(rapido_session_t *session, int timeout);
 /** Marks the given set of connections as eligible for retransmitting the content of the given connection. */
-int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id_t connection_id, set_t connections);
+int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id_t connection_id, rapido_set_t connections);
 /** Gracefully closes the connection. */
 int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t connection_id);
 /** Gracefully closes the session and send the TLS alert on the given connection. */
