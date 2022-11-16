@@ -46,7 +46,7 @@ var searchData=
   ['rapido_5frecord_5fmetadata_5ft_43',['rapido_record_metadata_t',['../structrapido__record__metadata__t.html',1,'']]],
   ['rapido_5fremove_5faddress_44',['rapido_remove_address',['../rapido_8h.html#a5a3cc13755a239acdb67005a991bbeb1',1,'rapido.c']]],
   ['rapido_5fremove_5fserver_5faddress_45',['rapido_remove_server_address',['../rapido_8h.html#a4155ac633d0aee949834359a3f575ba3',1,'rapido.h']]],
-  ['rapido_5fretransmit_5fconnection_46',['rapido_retransmit_connection',['../rapido_8h.html#a70fe1e38a89fe0596cfcf31fd17977be',1,'rapido.c']]],
+  ['rapido_5fretransmit_5fconnection_46',['rapido_retransmit_connection',['../rapido_8h.html#a0cdd5fe94b85ac50b58f94e4e32d392d',1,'rapido.c']]],
   ['rapido_5frun_5fnetwork_47',['rapido_run_network',['../rapido_8h.html#a9a3c01f48e7a58dbbb6f459337183d81',1,'rapido.c']]],
   ['rapido_5frun_5fserver_5fnetwork_48',['rapido_run_server_network',['../rapido_8h.html#ae54235d9f540c80a263be966b21b6e51',1,'rapido.c']]],
   ['rapido_5fserver_5faccept_5fnew_5fconnection_49',['rapido_server_accept_new_connection',['../rapido_8h.html#ae08a4c6e9d19031969ce4e151d12fabc',1,'rapido.c']]],
@@ -57,7 +57,9 @@ var searchData=
   ['rapido_5fsession_5faccept_5fnew_5fconnection_54',['rapido_session_accept_new_connection',['../rapido_8h.html#a627bbe1a59d547d6ffc71a25fd54fdfb',1,'rapido.c']]],
   ['rapido_5fsession_5ffree_55',['rapido_session_free',['../rapido_8h.html#ac96ddce737182da7ba9bb1db89bc38b1',1,'rapido.c']]],
   ['rapido_5fsession_5ft_56',['rapido_session_t',['../structrapido__session__t.html',1,'']]],
-  ['rapido_5fset_5fstream_5fproducer_57',['rapido_set_stream_producer',['../rapido_8h.html#adeb03ea1301a09ba3b38f1cf014efa10',1,'rapido.c']]],
-  ['rapido_5fstream_5ft_58',['rapido_stream_t',['../structrapido__stream__t.html',1,'']]],
-  ['rapido_5fstream_5fwrite_5fcb_5ft_59',['rapido_stream_write_cb_t',['../structrapido__stream__write__cb__t.html',1,'']]]
+  ['rapido_5fset_5fadd_57',['rapido_set_add',['../rapido_8h.html#aedbe1e89e58412e73a3046005ae887a0',1,'rapido.c']]],
+  ['rapido_5fset_5fstream_5fproducer_58',['rapido_set_stream_producer',['../rapido_8h.html#adeb03ea1301a09ba3b38f1cf014efa10',1,'rapido.c']]],
+  ['rapido_5fset_5ft_59',['rapido_set_t',['../structrapido__set__t.html',1,'']]],
+  ['rapido_5fstream_5ft_60',['rapido_stream_t',['../structrapido__stream__t.html',1,'']]],
+  ['rapido_5fstream_5fwrite_5fcb_5ft_61',['rapido_stream_write_cb_t',['../structrapido__stream__write__cb__t.html',1,'']]]
 ];

@@ -85,6 +85,8 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrapido__set__t.html">rapido_set_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrapido__array__t.html">rapido_array_t</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">A growing array allocating <code>capacity * item_size</code> bytes.  <a href="structrapido__array__t.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -129,24 +131,21 @@ Macros</h2></td></tr>
 <tr class="memitem:a4d28c3a2bb9edba0f41de000cf032bb5"><td class="memItemLeft" align="right" valign="top"><a id="a4d28c3a2bb9edba0f41de000cf032bb5" name="a4d28c3a2bb9edba0f41de000cf032bb5"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>SERVER_STREAM</b>(sid)&#160;&#160;&#160;(((sid)&amp;0x1) == 1)</td></tr>
 <tr class="separator:a4d28c3a2bb9edba0f41de000cf032bb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a28761995391953f2a54901fda8031826"><td class="memItemLeft" align="right" valign="top"><a id="a28761995391953f2a54901fda8031826" name="a28761995391953f2a54901fda8031826"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TLS_SESSION_ID_LEN</b>&#160;&#160;&#160;32</td></tr>
+<tr class="separator:a28761995391953f2a54901fda8031826"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a154c0bfca58b791b2e8625cf8efa832c"><td class="memItemLeft" align="right" valign="top"><a id="a154c0bfca58b791b2e8625cf8efa832c" name="a154c0bfca58b791b2e8625cf8efa832c"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SET_LEN</b>&#160;&#160;&#160;64</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>SET_LEN</b>&#160;&#160;&#160;64ull</td></tr>
 <tr class="separator:a154c0bfca58b791b2e8625cf8efa832c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a55629414acfbc98c9b1d1ea5bc57eff6"><td class="memItemLeft" align="right" valign="top"><a id="a55629414acfbc98c9b1d1ea5bc57eff6" name="a55629414acfbc98c9b1d1ea5bc57eff6"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SET_HAS</b>(bs,  e)&#160;&#160;&#160;(bs &amp; (1ull &lt;&lt; ((uint64_t)e)))</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>SET_HAS</b>(bs,  e)&#160;&#160;&#160;(bs &amp; (1ull &lt;&lt; ((uint64_t)(e))))</td></tr>
 <tr class="separator:a55629414acfbc98c9b1d1ea5bc57eff6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9f14dd6114c5a730f46c14229f863087"><td class="memItemLeft" align="right" valign="top"><a id="a9f14dd6114c5a730f46c14229f863087" name="a9f14dd6114c5a730f46c14229f863087"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SET_ADD</b>(bs,  e)&#160;&#160;&#160;bs = (bs | (1ull &lt;&lt; ((uint64_t)e)))</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>SET_ADD</b>(bs,  e)&#160;&#160;&#160;bs = (bs | (1ull &lt;&lt; ((uint64_t)(e))))</td></tr>
 <tr class="separator:a9f14dd6114c5a730f46c14229f863087"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa2536efb03bd702a66f2942934ddada4"><td class="memItemLeft" align="right" valign="top"><a id="aa2536efb03bd702a66f2942934ddada4" name="aa2536efb03bd702a66f2942934ddada4"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>SET_REMOVE</b>(bs,  e)&#160;&#160;&#160;bs = (bs &amp; (~(1ull &lt;&lt; ((uint64_t)e))))</td></tr>
 <tr class="separator:aa2536efb03bd702a66f2942934ddada4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af72a6b34e66dee0a901c409150353655"><td class="memItemLeft" align="right" valign="top"><a id="af72a6b34e66dee0a901c409150353655" name="af72a6b34e66dee0a901c409150353655"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SET_SIZE</b>(bs)&#160;&#160;&#160;__builtin_popcountll(bs)</td></tr>
-<tr class="separator:af72a6b34e66dee0a901c409150353655"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a28761995391953f2a54901fda8031826"><td class="memItemLeft" align="right" valign="top"><a id="a28761995391953f2a54901fda8031826" name="a28761995391953f2a54901fda8031826"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>TLS_SESSION_ID_LEN</b>&#160;&#160;&#160;32</td></tr>
-<tr class="separator:a28761995391953f2a54901fda8031826"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a070adfb7d6486ccc75765bd4f6d6f10f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rapido_8h.html#a070adfb7d6486ccc75765bd4f6d6f10f">rapido_array_iter</a>(a,  i,  e,  bl)</td></tr>
 <tr class="separator:a070adfb7d6486ccc75765bd4f6d6f10f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a91aa1eda310f8dfc9e6b0b8c2110a4ff"><td class="memItemLeft" align="right" valign="top"><a id="a91aa1eda310f8dfc9e6b0b8c2110a4ff" name="a91aa1eda310f8dfc9e6b0b8c2110a4ff"></a>
@@ -175,15 +174,16 @@ typedef uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_st
 <tr class="memitem:ae0c727c08955d7a1d37af6aa61940373"><td class="memItemLeft" align="right" valign="top"><a id="ae0c727c08955d7a1d37af6aa61940373" name="ae0c727c08955d7a1d37af6aa61940373"></a>
 typedef uint8_t&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_address_id_t</b></td></tr>
 <tr class="separator:ae0c727c08955d7a1d37af6aa61940373"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5b00d5e79051327ee1e2515dd18843f0"><td class="memItemLeft" align="right" valign="top"><a id="a5b00d5e79051327ee1e2515dd18843f0" name="a5b00d5e79051327ee1e2515dd18843f0"></a>
-typedef uint64_t&#160;</td><td class="memItemRight" valign="bottom"><b>set_t</b></td></tr>
-<tr class="separator:a5b00d5e79051327ee1e2515dd18843f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab9ab7c1a477ac6f345cbd59fcae7f8e1"><td class="memItemLeft" align="right" valign="top"><a id="ab9ab7c1a477ac6f345cbd59fcae7f8e1" name="ab9ab7c1a477ac6f345cbd59fcae7f8e1"></a>
 typedef uint8_t *(*&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_stream_producer_t</b>) (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *, rapido_stream_id_t, void *, uint64_t, size_t *)</td></tr>
 <tr class="separator:ab9ab7c1a477ac6f345cbd59fcae7f8e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:aedbe1e89e58412e73a3046005ae887a0"><td class="memItemLeft" align="right" valign="top"><a id="aedbe1e89e58412e73a3046005ae887a0" name="aedbe1e89e58412e73a3046005ae887a0"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_set_add</b> (<a class="el" href="structrapido__set__t.html">rapido_set_t</a> *set, uint32_t value)</td></tr>
+<tr class="memdesc:aedbe1e89e58412e73a3046005ae887a0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Adds the given value to the set when it can contains, otherwise fails. <br /></td></tr>
+<tr class="separator:aedbe1e89e58412e73a3046005ae887a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab576f6e1b834023f1ef924a1964e948c"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rapido_8h.html#ab576f6e1b834023f1ef924a1964e948c">rapido_queue_pop</a> (<a class="el" href="structrapido__queue__t.html">rapido_queue_t</a> *queue)</td></tr>
 <tr class="memdesc:ab576f6e1b834023f1ef924a1964e948c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns a pointer to an element poped from the front of the queue.  <a href="rapido_8h.html#ab576f6e1b834023f1ef924a1964e948c">More...</a><br /></td></tr>
 <tr class="separator:ab576f6e1b834023f1ef924a1964e948c"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -235,10 +235,10 @@ rapido_connection_id_t&#160;</td><td class="memItemRight" valign="bottom"><b>rap
 int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_run_network</b> (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, int timeout)</td></tr>
 <tr class="memdesc:a9a3c01f48e7a58dbbb6f459337183d81"><td class="mdescLeft">&#160;</td><td class="mdescRight">Runs the session for some time. <br /></td></tr>
 <tr class="separator:a9a3c01f48e7a58dbbb6f459337183d81"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a70fe1e38a89fe0596cfcf31fd17977be"><td class="memItemLeft" align="right" valign="top"><a id="a70fe1e38a89fe0596cfcf31fd17977be" name="a70fe1e38a89fe0596cfcf31fd17977be"></a>
-int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_retransmit_connection</b> (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, rapido_connection_id_t connection_id, set_t connections)</td></tr>
-<tr class="memdesc:a70fe1e38a89fe0596cfcf31fd17977be"><td class="mdescLeft">&#160;</td><td class="mdescRight">Marks the given set of connections as eligible for retransmitting the content of the given connection. <br /></td></tr>
-<tr class="separator:a70fe1e38a89fe0596cfcf31fd17977be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0cdd5fe94b85ac50b58f94e4e32d392d"><td class="memItemLeft" align="right" valign="top"><a id="a0cdd5fe94b85ac50b58f94e4e32d392d" name="a0cdd5fe94b85ac50b58f94e4e32d392d"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_retransmit_connection</b> (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, rapido_connection_id_t connection_id, <a class="el" href="structrapido__set__t.html">rapido_set_t</a> connections)</td></tr>
+<tr class="memdesc:a0cdd5fe94b85ac50b58f94e4e32d392d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Marks the given set of connections as eligible for retransmitting the content of the given connection. <br /></td></tr>
+<tr class="separator:a0cdd5fe94b85ac50b58f94e4e32d392d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a55398b7699e88e8bd9eb0ebd8731c941"><td class="memItemLeft" align="right" valign="top"><a id="a55398b7699e88e8bd9eb0ebd8731c941" name="a55398b7699e88e8bd9eb0ebd8731c941"></a>
 int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_close_connection</b> (<a class="el" href="structrapido__session__t.html">rapido_session_t</a> *session, rapido_connection_id_t connection_id)</td></tr>
 <tr class="memdesc:a55398b7699e88e8bd9eb0ebd8731c941"><td class="mdescLeft">&#160;</td><td class="mdescRight">Gracefully closes the connection. <br /></td></tr>
@@ -418,7 +418,7 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_server_free</b>
 <div class="line">            bl                                                                                                                     \</div>
 <div class="line">        }                                                                                                                          \</div>
 <div class="line">    } <span class="keywordflow">while</span> (0)</div>
-<div class="ttc" id="arapido_8h_html_ab576f6e1b834023f1ef924a1964e948c"><div class="ttname"><a href="rapido_8h.html#ab576f6e1b834023f1ef924a1964e948c">rapido_queue_pop</a></div><div class="ttdeci">void * rapido_queue_pop(rapido_queue_t *queue)</div><div class="ttdoc">Returns a pointer to an element poped from the front of the queue.</div><div class="ttdef"><b>Definition:</b> rapido.c:343</div></div>
+<div class="ttc" id="arapido_8h_html_ab576f6e1b834023f1ef924a1964e948c"><div class="ttname"><a href="rapido_8h.html#ab576f6e1b834023f1ef924a1964e948c">rapido_queue_pop</a></div><div class="ttdeci">void * rapido_queue_pop(rapido_queue_t *queue)</div><div class="ttdoc">Returns a pointer to an element poped from the front of the queue.</div><div class="ttdef"><b>Definition:</b> rapido.c:382</div></div>
 </div><!-- fragment -->
 </div>
 </div>
