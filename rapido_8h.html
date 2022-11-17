@@ -146,6 +146,8 @@ Macros</h2></td></tr>
 <tr class="memitem:aa2536efb03bd702a66f2942934ddada4"><td class="memItemLeft" align="right" valign="top"><a id="aa2536efb03bd702a66f2942934ddada4" name="aa2536efb03bd702a66f2942934ddada4"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>SET_REMOVE</b>(bs,  e)&#160;&#160;&#160;bs = (bs &amp; (~(1ull &lt;&lt; ((uint64_t)e))))</td></tr>
 <tr class="separator:aa2536efb03bd702a66f2942934ddada4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae56aa691263453b6daf51a9adf821179"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rapido_8h.html#ae56aa691263453b6daf51a9adf821179">rapido_set_iter</a>(set,  i,  v,  bl)</td></tr>
+<tr class="separator:ae56aa691263453b6daf51a9adf821179"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a070adfb7d6486ccc75765bd4f6d6f10f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rapido_8h.html#a070adfb7d6486ccc75765bd4f6d6f10f">rapido_array_iter</a>(a,  i,  e,  bl)</td></tr>
 <tr class="separator:a070adfb7d6486ccc75765bd4f6d6f10f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a91aa1eda310f8dfc9e6b0b8c2110a4ff"><td class="memItemLeft" align="right" valign="top"><a id="a91aa1eda310f8dfc9e6b0b8c2110a4ff" name="a91aa1eda310f8dfc9e6b0b8c2110a4ff"></a>
@@ -184,6 +186,18 @@ Functions</h2></td></tr>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_set_add</b> (<a class="el" href="structrapido__set__t.html">rapido_set_t</a> *set, uint32_t value)</td></tr>
 <tr class="memdesc:aedbe1e89e58412e73a3046005ae887a0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Adds the given value to the set when it can contains, otherwise fails. <br /></td></tr>
 <tr class="separator:aedbe1e89e58412e73a3046005ae887a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a01797655e226cb5cff3043c67d737ecf"><td class="memItemLeft" align="right" valign="top"><a id="a01797655e226cb5cff3043c67d737ecf" name="a01797655e226cb5cff3043c67d737ecf"></a>
+bool&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_set_has</b> (<a class="el" href="structrapido__set__t.html">rapido_set_t</a> *set, uint32_t value)</td></tr>
+<tr class="memdesc:a01797655e226cb5cff3043c67d737ecf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns whether the set contains the given value. <br /></td></tr>
+<tr class="separator:a01797655e226cb5cff3043c67d737ecf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaf8180c7137c7a4d89686f8c7598fb96"><td class="memItemLeft" align="right" valign="top"><a id="aaf8180c7137c7a4d89686f8c7598fb96" name="aaf8180c7137c7a4d89686f8c7598fb96"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_set_remove</b> (<a class="el" href="structrapido__set__t.html">rapido_set_t</a> *set, uint32_t value)</td></tr>
+<tr class="memdesc:aaf8180c7137c7a4d89686f8c7598fb96"><td class="mdescLeft">&#160;</td><td class="mdescRight">Removes the given value from the set. <br /></td></tr>
+<tr class="separator:aaf8180c7137c7a4d89686f8c7598fb96"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afe0f2400a653d9a42e79b007054baa44"><td class="memItemLeft" align="right" valign="top"><a id="afe0f2400a653d9a42e79b007054baa44" name="afe0f2400a653d9a42e79b007054baa44"></a>
+size_t&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_set_size</b> (<a class="el" href="structrapido__set__t.html">rapido_set_t</a> *set)</td></tr>
+<tr class="memdesc:afe0f2400a653d9a42e79b007054baa44"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the number of element in the set. <br /></td></tr>
+<tr class="separator:afe0f2400a653d9a42e79b007054baa44"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab576f6e1b834023f1ef924a1964e948c"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rapido_8h.html#ab576f6e1b834023f1ef924a1964e948c">rapido_queue_pop</a> (<a class="el" href="structrapido__queue__t.html">rapido_queue_t</a> *queue)</td></tr>
 <tr class="memdesc:ab576f6e1b834023f1ef924a1964e948c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns a pointer to an element poped from the front of the queue.  <a href="rapido_8h.html#ab576f6e1b834023f1ef924a1964e948c">More...</a><br /></td></tr>
 <tr class="separator:ab576f6e1b834023f1ef924a1964e948c"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -419,6 +433,55 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>rapido_server_free</b>
 <div class="line">        }                                                                                                                          \</div>
 <div class="line">    } <span class="keywordflow">while</span> (0)</div>
 <div class="ttc" id="arapido_8h_html_ab576f6e1b834023f1ef924a1964e948c"><div class="ttname"><a href="rapido_8h.html#ab576f6e1b834023f1ef924a1964e948c">rapido_queue_pop</a></div><div class="ttdeci">void * rapido_queue_pop(rapido_queue_t *queue)</div><div class="ttdoc">Returns a pointer to an element poped from the front of the queue.</div><div class="ttdef"><b>Definition:</b> rapido.c:382</div></div>
+</div><!-- fragment -->
+</div>
+</div>
+<a id="ae56aa691263453b6daf51a9adf821179" name="ae56aa691263453b6daf51a9adf821179"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae56aa691263453b6daf51a9adf821179">&#9670;&nbsp;</a></span>rapido_set_iter</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define rapido_set_iter</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">set, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">i, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">v, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">bl&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    <span class="keywordflow">do</span> {                                                                                                                           \</div>
+<div class="line">        if ((set)-&gt;bs == 0) break;                                                                                                 \</div>
+<div class="line">        for (<span class="keywordtype">int</span> i = 0; i &lt; SET_LEN; i++) {                                                                                        \</div>
+<div class="line">            if (SET_HAS((set)-&gt;bs, i)) {                                                                                           \</div>
+<div class="line">                v = (set)-&gt;start + i;                                                                                              \</div>
+<div class="line">                bl                                                                                                                 \</div>
+<div class="line">            }                                                                                                                      \</div>
+<div class="line">        }                                                                                                                          \</div>
+<div class="line">    } <span class="keywordflow">while</span> (0)</div>
 </div><!-- fragment -->
 </div>
 </div>
