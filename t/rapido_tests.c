@@ -527,7 +527,7 @@ void test_multiple_streams() {
     rapido_connection_id_t s_cid = notification->connection_id;
     ok(ptls_handshake_is_complete(server->tls));
 
-    size_t n_streams = 32;
+    size_t n_streams = 80;
     rapido_stream_id_t streams[n_streams];
 
     for (int i = 0; i < n_streams; i++) {

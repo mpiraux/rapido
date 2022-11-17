@@ -31,6 +31,20 @@ typedef struct {
 #define SET_REMOVE(bs, e) bs = (bs & (~(1ull << ((uint64_t)e))))
 
 void rapido_set_add(rapido_set_t *set, uint32_t value);
+bool rapido_set_has(rapido_set_t *set, uint32_t value);
+void rapido_set_add(rapido_set_t *set, uint32_t value);
+void rapido_set_remove(rapido_set_t *set, uint32_t value);
+size_t rapido_set_size(rapido_set_t *set);
+#define rapido_set_iter(set, i, v, bl) \
+    do {                                                                                                                           \
+        if ((set)->bs == 0) break;                                                                                                 \
+        for (int i = 0; i < SET_LEN; i++) {                                                                                        \
+            if (SET_HAS((set)->bs, i)) {                                                                                           \
+                v = (set)->start + i;                                                                                              \
+                bl                                                                                                                 \
+            }                                                                                                                      \
+        }                                                                                                                          \
+    } while (0)
 
 /**
  * A growing array allocating `capacity * item_size` bytes.
