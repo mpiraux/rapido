@@ -538,6 +538,7 @@ void test_multiple_streams() {
         ok(rapido_attach_stream(client, streams[i], c_cid) == 0);
         ok(rapido_close_stream(client, streams[i]) == 0);
         rapido_run_network(client, RUN_NETWORK_TIMEOUT_SHORT);
+        rapido_run_network(client, RUN_NETWORK_TIMEOUT_SHORT);
     }
 
     rapido_run_network(server, RUN_NETWORK_TIMEOUT_DEFAULT);
