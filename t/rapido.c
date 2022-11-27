@@ -317,10 +317,12 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
             } else if (!extra_connection && notification->notification_type == rapido_new_remote_address) {
                 printf("Creating a new connection to the secondary address advertised by the server\n");
                 extra_connection = rapido_create_connection(session, 1, notification->address_id);
-                rapido_attach_stream(session, app_stream, extra_connection);
-                enqueue_get_request(session, app_stream, get_path);
-                no_requests++;
-                rapido_close_stream(session, app_stream);
+                if (get_path) {
+                    rapido_attach_stream(session, app_stream, extra_connection);
+                    enqueue_get_request(session, app_stream, get_path);
+                    no_requests++;
+                    rapido_close_stream(session, app_stream);
+                }
             } else if (notification->notification_type == rapido_session_closed) {
                 printf("Session closed\n");
                 closed = true;
