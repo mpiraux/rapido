@@ -295,7 +295,7 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
     struct st_http_client_context http_ctx = {0};
     rapido_connection_id_t extra_connection = 0;
     size_t no_requests_received = 0;
-    while (!closed && (no_requests == 0 ? data_received < data_to_receive : no_requests_received < no_requests)) {
+    while (!closed && (get_path == NULL ? data_received < data_to_receive : no_requests_received < no_requests)) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
         bool has_read = false;
         while (session->pending_notifications.size > 0) {
@@ -306,7 +306,7 @@ void run_client(rapido_session_t *session, size_t data_to_receive, const char *g
                 size_t read_len = UINT64_MAX;
                 uint8_t *read_ptr = rapido_read_stream(session, notification->stream_id, &read_len);
                 while (read_len > 0) {
-                    if (notification->stream_id == 0) {
+                    if (get_path) {
                         no_requests_received += handle_http_response(read_ptr, read_len, &http_ctx);
                     }
                     data_received += read_len;
