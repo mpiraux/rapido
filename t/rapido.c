@@ -110,8 +110,6 @@ struct st_http_server_context {
 size_t handle_http_request(uint8_t *read_ptr, size_t read_len, struct st_http_server_context *ctx) {
     size_t offset = 0;
     while (!ctx->request_is_complete && offset < read_len) {
-        printf("offset: %zu\n", offset);
-        printf("ptr: %s", read_ptr + offset);
         if (!ctx->first_line_parsed) {
             ssize_t next_eol = seek_next_char(read_ptr + offset, read_len - offset, '\n');
             assert(next_eol != -1 && "handle_http() does not support fragmented header");
@@ -146,7 +144,8 @@ size_t handle_http_request(uint8_t *read_ptr, size_t read_len, struct st_http_se
                 ctx->header_user_agent = strndup(read_ptr + offset, next_eol);
                 offset += next_eol + 1;
             }
-            {
+            ssize_t next_hdr = seek_next_char(read_ptr + offset, read_len - offset, ':');
+            if (next_hdr != -1 && next_hdr < seek_next_char(read_ptr + offset, read_len - offset, '\n')) {
                 ssize_t next_eol = seek_next_char(read_ptr + offset, read_len - offset, '\n');
                 assert(next_eol != -1 && "handle_http() does not support fragmented header");
                 offset += next_eol + 1;
