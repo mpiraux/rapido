@@ -780,7 +780,7 @@ void rapido_session_init(rapido_session_t *session, ptls_context_t *tls_ctx, boo
     session->local_addresses.item_size = sizeof(struct sockaddr_storage);
     session->remote_addresses.item_size = sizeof(struct sockaddr_storage);
     session->tls_session_ids.item_size = TLS_SESSION_ID_LEN;
-    rapido_queue_init(&session->pending_notifications, sizeof(rapido_application_notification_t), 256);
+    rapido_queue_init(&session->pending_notifications, sizeof(rapido_application_notification_t), 512);
     if (session->is_server) {
         session->server.listen_sockets.item_size = sizeof(int);
         session->server.pending_connections.item_size = sizeof(rapido_pending_connection_t);
