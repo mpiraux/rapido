@@ -39,7 +39,7 @@ Other options are documented in the command:
 Public test server
 ---
 
-We host a public server running an instance of the test server at 192.168.1.35 and 2a02:a03f:65ff:e300:c6c6:30e2:fda5:45e9 on port 443. Be aware that it can only accept a single TCPLS session at a time. This test server is here for researchers to test their own implementation of TCPLS. After establishing a session, the server will continuously send data on its first stream until the client terminates the session.
+We host a public server running an instance of the test server at 130.104.229.29 and 2001:6a8:308f:9:0:82ff:fe68:e51d on port 443. Be aware that it can only accept a single TCPLS session at a time. This test server is here for researchers to test their own implementation of TCPLS. After establishing a session, the server will continuously send data on its first stream until the client terminates the session.
 
 To connect over IPv4 to the server:
 ```
