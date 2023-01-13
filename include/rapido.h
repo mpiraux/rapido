@@ -189,6 +189,10 @@ typedef struct {
         FILE *out;
         uint64_t reference_time;
     } qlog;
+
+    struct {
+        bool enable_ping_probes;
+    } config;
 } rapido_session_t;
 
 typedef struct {
@@ -223,6 +227,7 @@ typedef struct {
     bool require_ack;
     uint64_t last_receive_time;
     size_t non_ack_eliciting_count;
+    uint64_t last_send_time;
 
     rapido_set_t retransmit_connections;
 

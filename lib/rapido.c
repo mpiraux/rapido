@@ -54,6 +54,7 @@
 #define DEFAULT_TCPLS_SESSION_ID_AMOUNT 4
 #define DEFAULT_DELAYED_ACK_COUNT 16
 #define DEFAULT_DELAYED_ACK_TIME 25000
+#define DEFAULT_PING_PROBE_TIME 10000
 
 #define debug_dump(src, len)                                                                                                       \
     do {                                                                                                                           \
@@ -633,7 +634,7 @@ void rapido_range_buffer_free(rapido_range_buffer_t *receive) {
 typedef uint8_t rapido_frame_type_t;
 
 static const rapido_frame_type_t padding_frame_type = 0x0;
-static  __attribute__((unused)) const rapido_frame_type_t ping_frame_type = 0x1;
+static const rapido_frame_type_t ping_frame_type = 0x1;
 static const rapido_frame_type_t stream_frame_type = 0x2;
 static const rapido_frame_type_t ack_frame_type = 0x3;
 static const rapido_frame_type_t new_session_id_frame_type = 0x4;
@@ -1130,6 +1131,21 @@ Exit:
     return 0;
 }
 
+int rapido_prepare_ping_frame(rapido_session_t *session, uint8_t *buf, size_t *len) {
+    if (*len > 0) {
+        *buf = ping_frame_type;
+        *len = 1;
+    }
+    return 0;
+}
+
+int rapido_decode_ping_frame(rapido_session_t *session, uint8_t *buf, size_t *len) {
+    assert(*len > 0);
+    assert(*buf == ping_frame_type);
+    *len = 1;
+    return 0;
+}
+
 int rapido_decode_stream_frame(rapido_session_t *session, uint8_t *buf, size_t *len, rapido_stream_frame_t *frame) {
     size_t stream_header_len = sizeof(rapido_frame_type_t) + sizeof(rapido_stream_id_t) + (2 * sizeof(uint64_t));
     assert(buf[0] == stream_frame_type);
@@ -1492,6 +1508,19 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
         }
     });
 
+    if (session->config.enable_ping_probes && connection->last_send_time + DEFAULT_PING_PROBE_TIME < current_time) {
+        rapido_queued_frame_t frame = { 0 };
+        frame.type = ping_frame_type;
+        todo(connection->frame_queue.size == connection->frame_queue.capacity);
+        memcpy(rapido_queue_push(&connection->frame_queue), &frame, sizeof(rapido_queued_frame_t));
+        if (!wants_to_send) {
+            wants_to_send = true;
+            LOG {
+                reason = "Connection should send PING probe";
+            }
+        }
+    }
+
     LOG {
         QLOG(session, "connection", "rapido_connection_wants_to_send", "", "{\"connection_id\": \"%d\", \"reason\": \"%s\", \"wants_to_send\": \"%d\", \"is_blocked\": \"%d\"}",
              connection->connection_id, reason, wants_to_send, is_blocked == NULL ? NULL : *is_blocked);
@@ -1505,6 +1534,7 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
     *len = min(*len, TLS_MAX_RECORD_SIZE);
     *is_ack_eliciting = false;
     size_t consumed = 0;
+    uint64_t current_time = get_usec_time();
 
     rapido_set_iter(&connection->retransmit_connections, i, rapido_connection_id_t connection_id, {
         if (consumed >= *len)
@@ -1555,6 +1585,9 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
             case connection_reset_frame_type:
                 rapido_prepare_connection_reset_frame(session, frame->conn_reset_frame.connection_id, cleartext + consumed,
                                                       &frame_length);
+                break;
+            case ping_frame_type:
+                rapido_prepare_ping_frame(session, cleartext + consumed, &frame_length);
                 break;
             default:
                 todo("Unsupported frame in the frame queue" != 0);
@@ -1610,6 +1643,10 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
             *is_ack_eliciting = frame_len > 0;
         }
     });
+
+    if (consumed > 0) {
+        connection->last_send_time = current_time;
+    }
 
     assert(consumed <= TLS_MAX_RECORD_SIZE);
     *len = consumed;
@@ -1918,6 +1955,9 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
             size_t len = plaintext.off - processed;
             is_ack_eliciting |= rapido_frame_is_ack_eliciting(frame_type);
             switch (frame_type) {
+            case ping_frame_type:
+                assert(rapido_decode_ping_frame(session, plaintext.base + processed, &len) == 0);
+                break;
             case stream_frame_type: {
                 rapido_stream_frame_t frame;
                 assert(rapido_decode_stream_frame(session, plaintext.base + processed, &len, &frame) == 0);
