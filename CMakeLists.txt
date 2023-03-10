@@ -178,6 +178,9 @@ IF (NOT WITH_FUSION)
     SET_TARGET_PROPERTIES(ptlsbench PROPERTIES EXCLUDE_FROM_ALL 1)
 ENDIF ()
 
+ADD_EXECUTABLE(relay_test_server t/relay_test_server.c)
+TARGET_LINK_LIBRARIES(relay_test_server picotls-core picotls-openssl picotls-rapido)
+
 ADD_CUSTOM_TARGET(check env BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR} prove --exec '' -v ${CMAKE_CURRENT_BINARY_DIR}/*.t t/*.t WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${TEST_EXES} cli)
 
 IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
