@@ -180,6 +180,8 @@ ENDIF ()
 
 ADD_EXECUTABLE(relay_test_server t/relay_test_server.c)
 TARGET_LINK_LIBRARIES(relay_test_server picotls-core picotls-openssl picotls-rapido)
+ADD_EXECUTABLE(relay_test_client t/relay_test_client.c)
+TARGET_LINK_LIBRARIES(relay_test_client picotls-core picotls-openssl picotls-rapido)
 
 ADD_CUSTOM_TARGET(check env BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR} prove --exec '' -v ${CMAKE_CURRENT_BINARY_DIR}/*.t t/*.t WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${TEST_EXES} cli)
 
