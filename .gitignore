@@ -34,3 +34,4 @@ __pycache__
 tests/npf_tests/cluster
 tests/npf_tests/results
 dev_certs/
+.vscode/
