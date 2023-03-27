@@ -20,6 +20,7 @@ typedef uint32_t rapido_stream_id_t;
 #define TLS_SESSION_ID_LEN 32
 
 typedef uint8_t rapido_address_id_t;
+typedef uint8_t rapido_tunnel_id_t;
 typedef struct {
     uint64_t bs;
     uint32_t start;
@@ -288,6 +289,19 @@ typedef struct {
     uint64_t bytes_received;
     uint64_t bytes_sent;
 } rapido_stream_t;
+
+typedef struct {
+    rapido_tunnel_id_t tunnel_id;
+
+    struct sockaddr_storage destination_addr;
+    union {
+        int ipc_sockets[2];  // For client
+        int destination_socket;  // For server
+    };
+
+    uint64_t bytes_received;
+    uint64_t bytes_sent;
+} rapido_tunnel_t;
 
 typedef struct {
     enum {

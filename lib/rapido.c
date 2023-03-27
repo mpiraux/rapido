@@ -641,6 +641,8 @@ static const rapido_frame_type_t new_session_id_frame_type = 0x4;
 static const rapido_frame_type_t new_address_frame_type = 0x5;
 static const rapido_frame_type_t connection_reset_frame_type = 0x6;
 static __attribute__((unused)) const rapido_frame_type_t ebpf_code_frame_type = 0x7;
+static const rapido_frame_type_t tunnel_control_type = 0x8;
+static const rapido_frame_type_t tunnel_data_type = 0x9;
 
 typedef struct {
     rapido_stream_id_t stream_id;
@@ -684,6 +686,21 @@ typedef struct {
         rapido_connection_reset_frame_t conn_reset_frame;
     };
 } rapido_queued_frame_t;
+
+typedef struct {
+    rapido_tunnel_id_t tunnel_id;
+    uint8_t family;
+    uint8_t addr[16];
+    uint16_t port;
+} rapido_tunnel_control_frame_t;
+
+typedef struct {
+    rapido_tunnel_id_t tunnel_id;
+    uint64_t offset;
+    size_t len;
+    uint8_t fin;
+    uint8_t *data;
+} rapido_tunnel_data_frame_t;
 
 int rapido_frame_is_ack_eliciting(rapido_frame_type_t frame_id) {
     return frame_id != padding_frame_type && frame_id != ack_frame_type;
@@ -1331,6 +1348,11 @@ int rapido_prepare_new_address_frame(rapido_session_t *session, rapido_address_i
              ntohs(*SOCKADDR_PORT(address)));
     };
     return 0;
+}
+
+int rapido_prepare_open_tunnel_frame(rapido_session_t *session, struct sockaddr_storage *address, uint8_t *buf, size_t *len) {
+    assert(address);
+
 }
 
 int rapido_decode_new_address_frame(rapido_session_t *session, uint8_t *buf, size_t *len, rapido_new_address_frame_t *frame) {
