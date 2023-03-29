@@ -1004,6 +1004,16 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
     return 0;
 }
 
+rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session, rapido_stream_t *stream) {
+    rapido_tunnel_t *tunnel = rapido_array_add(&session->tunnels, session->next_tunnel_id);
+    memset(tunnel, 0, sizeof(rapido_tunnel_t));
+    tunnel->tunnel_id = session->next_tunnel_id++; // FIXME Might need to be a += 2 ?
+    tunnel->stream = stream;
+    QLOG(session, "api", "rapido_open_tunnel", "", "{\"tunnel_id\": \"%d\"}", tunnel->tunnel_id);
+    stream->
+    return tunnel->tunnel_id;
+}
+
 void rapido_stream_init(rapido_session_t *session, rapido_stream_t *stream) {
     memset(stream, 0, sizeof(rapido_stream_t));
     rapido_range_buffer_init(&stream->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
@@ -2004,6 +2014,12 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
                 rapido_connection_reset_frame_t frame;
                 assert(rapido_decode_connection_reset_frame(session, plaintext.base + processed, &len, &frame) == 0);
                 assert(rapido_process_connection_reset_frame(session, &frame) == 0);
+            } break;
+            case tunnel_control_type: {
+                fprintf(stderr, "Received a tunnel control frame!");
+            } break;
+            case tunnel_data_type: {
+                fprintf(stderr, "Received a tunnel data frame!");
             } break;
             default:
                 WARNING("Unsupported frame type: %d\n", frame_type);
