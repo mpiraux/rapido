@@ -162,6 +162,8 @@ typedef struct {
     rapido_connection_id_t next_connection_id;
     rapido_array_t streams;
     rapido_stream_id_t next_stream_id;
+    rapido_array_t tunnels;
+    rapido_tunnel_id_t next_tunnel_id;
 
     rapido_array_t local_addresses;
     rapido_address_id_t next_local_address_id;
@@ -290,17 +292,22 @@ typedef struct {
     uint64_t bytes_sent;
 } rapido_stream_t;
 
+#define TUNNEL_STATE_NEW 0x00
+#define TUNNEL_STATE_CONNECTING 0x01
+#define TUNNEL_STATE_READY 0x02
+#define TUNNEL_STATE_CLOSED 0x03
+#define TUNNEL_STATE_FAILED 0x04
+
 typedef struct {
     rapido_tunnel_id_t tunnel_id;
+    rapido_stream_t *stream;
+    uint8_t state;
 
     struct sockaddr_storage destination_addr;
     union {
         int ipc_sockets[2];  // For client
         int destination_socket;  // For server
     };
-
-    uint64_t bytes_received;
-    uint64_t bytes_sent;
 } rapido_tunnel_t;
 
 typedef struct {
@@ -358,6 +365,9 @@ int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id
 int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t connection_id);
 /** Gracefully closes the session and send the TLS alert on the given connection. */
 int rapido_close_session(rapido_session_t *session, rapido_connection_id_t connection_id);
+
+/** Open a new tunnel using a stream. */
+rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session, rapido_stream_id_t stream);
 
 /** Add a new stream to the session. */
 rapido_stream_id_t rapido_open_stream(rapido_session_t *session);

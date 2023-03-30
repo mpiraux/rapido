@@ -28,6 +28,14 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    // Tunnel endpoint address resolution
+    struct sockaddr_storage tunnel_endpoint;
+    socklen_t tunnel_endpoint_len;
+    if (resolve_address((struct sockaddr *)&tunnel_endpoint, &tunnel_endpoint_len, "localhost", "8888", AF_INET6, SOCK_STREAM, IPPROTO_TCP) != 0) {
+        exit(1);
+    }
+
+
     rapido_session_t *session = rapido_new_session(&ctx, false, host, stderr);
     rapido_address_id_t remote_addr = rapido_add_remote_address(session, (struct sockaddr *)&sa, salen);
     // rapido_address_id_t local_addr = rapido_add_address(session, (struct sockaddr *)&la, salen);
@@ -37,12 +45,18 @@ int main(int argc, char *argv[]) {
     char *data;
     size_t readlen = 64;
 
+    rapido_tunnel_id_t tun_id;
+    rapido_tunnel_t *tun;
+
     while (!session->is_closed) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
         while (session->pending_notifications.size > 0) {
             notification = rapido_queue_pop(&session->pending_notifications);
             if (notification->notification_type == rapido_new_stream) {
                 fprintf(stdout, "Received a new stream with ID %x\n", notification->stream_id);
+                tun_id = rapido_open_tunnel(session, notification->stream_id);
+                tun = rapido_array_get(&session->tunnels, tun_id);
+                tun->destination_addr = tunnel_endpoint;
             } else if (notification->notification_type == rapido_stream_has_data) {
                 fprintf(stdout, "Stream %x has buffered data\n", notification->stream_id);
                 data = rapido_read_stream(session, notification->stream_id, &readlen);
@@ -51,5 +65,6 @@ int main(int argc, char *argv[]) {
                 fprintf(stdout, "No more data available in stream %x, now closed.", notification->stream_id);
             }
         }
+        sleep(1);
     }
 }

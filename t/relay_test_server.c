@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
     size_t server_session_index;
     rapido_application_notification_t *notification = NULL;
     rapido_stream_id_t active_server_stream_id;
-    rapido_session_t* server_session;
+    rapido_session_t* server_session = NULL;
 
     const char *test_payload = "Hello World!";
     
@@ -46,6 +46,9 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         rapido_run_server_network(server, RUN_NETWORK_TIMEOUT);
+        if (server_session) {
+            rapido_run_network(server_session, RUN_NETWORK_TIMEOUT);
+        }
         notification = rapido_next_server_notification(server, &server_session_index);
         if (notification && notification->notification_type == rapido_new_connection) {
             fprintf(stdout, "Accepting a connection\n");
@@ -53,11 +56,11 @@ int main(int argc, char *argv[]) {
             server_session = ((rapido_session_t *) rapido_array_get(&(server->sessions), server_session_index));
             fprintf(stdout, "Session is_closed = %d\n", server_session->is_closed);
             active_server_stream_id = rapido_open_stream(server_session);
-            rapido_add_to_stream(server_session, active_server_stream_id, test_payload, strlen(test_payload));
-            rapido_close_stream(server_session, active_server_stream_id);
+            rapido_add_to_stream(server_session, active_server_stream_id, "", 1); // Blank stream message to init stream
+            // rapido_close_stream(server_session, active_server_stream_id);
             rapido_attach_stream(server_session, active_server_stream_id, notification->connection_id);
             rapido_run_network(server_session, RUN_NETWORK_TIMEOUT);
-            rapido_close_session(server_session, notification->connection_id);
+            // rapido_close_session(server_session, notification->connection_id);
         } else {
             fprintf(stdout, "Nope, still waiting...\n");
         }

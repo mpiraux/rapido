@@ -681,13 +681,6 @@ typedef struct {
 } rapido_ebpf_code_frame_t;
 
 typedef struct {
-    rapido_frame_type_t type;
-    union {
-        rapido_connection_reset_frame_t conn_reset_frame;
-    };
-} rapido_queued_frame_t;
-
-typedef struct {
     rapido_tunnel_id_t tunnel_id;
     uint8_t family;
     uint8_t addr[16];
@@ -701,6 +694,14 @@ typedef struct {
     uint8_t fin;
     uint8_t *data;
 } rapido_tunnel_data_frame_t;
+
+typedef struct {
+    rapido_frame_type_t type;
+    union {
+        rapido_connection_reset_frame_t conn_reset_frame;
+        rapido_tunnel_control_frame_t tun_ctrl_frame;
+    };
+} rapido_queued_frame_t;
 
 int rapido_frame_is_ack_eliciting(rapido_frame_type_t frame_id) {
     return frame_id != padding_frame_type && frame_id != ack_frame_type;
@@ -1004,13 +1005,14 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
     return 0;
 }
 
-rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session, rapido_stream_t *stream) {
+rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session, rapido_stream_id_t stream_id) {
+    rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
     rapido_tunnel_t *tunnel = rapido_array_add(&session->tunnels, session->next_tunnel_id);
     memset(tunnel, 0, sizeof(rapido_tunnel_t));
     tunnel->tunnel_id = session->next_tunnel_id++; // FIXME Might need to be a += 2 ?
     tunnel->stream = stream;
+    tunnel->state = TUNNEL_STATE_NEW;
     QLOG(session, "api", "rapido_open_tunnel", "", "{\"tunnel_id\": \"%d\"}", tunnel->tunnel_id);
-    stream->
     return tunnel->tunnel_id;
 }
 
@@ -1331,6 +1333,31 @@ int rapido_process_ack_frame(rapido_session_t *session, rapido_ack_frame_t *fram
     return 0;
 }
 
+int rapido_prepare_tunnel_control_frame(rapido_session_t *session, rapido_queued_frame_t *frame, uint8_t *buf, size_t *len) {
+    size_t consumed = 0;
+
+    rapido_tunnel_control_frame_t *tun_frame = &frame->tun_ctrl_frame;
+    size_t addr_len = tun_frame->family == 4 ? 4 : 16;
+
+    buf[consumed++] = tunnel_control_type;
+    buf[consumed++] = tun_frame->tunnel_id;
+    buf[consumed++] = tun_frame->family;
+    memcpy(buf + consumed, tun_frame->addr, addr_len);
+    consumed += addr_len;
+    *(uint16_t *)(buf + consumed) = tun_frame->port;
+    *len = consumed;
+    LOG {
+        char ip_string[46];
+        inet_ntop(tun_frame->family == 4 ? AF_INET : AF_INET6, tun_frame->addr, ip_string, 46);
+        QLOG(session, "frames", "rapido_prepare_tunnel_control_frame", "",
+                "{\"tunnel_id\": \"%d\", \"family\": \"%d\", \"address\": \"%s\", \"port\": \"%d\"}", tun_frame->tunnel_id, tun_frame->family, ip_string,
+                ntohs(tun_frame->port));
+    };
+    
+    ((rapido_tunnel_t*) rapido_array_get(&session->tunnels, tun_frame->tunnel_id))->state = TUNNEL_STATE_CONNECTING;
+    return 0;
+}
+
 int rapido_prepare_new_address_frame(rapido_session_t *session, rapido_address_id_t address_id, uint8_t *buf, size_t *len) {
     struct sockaddr_storage *address = rapido_array_get(&session->local_addresses, address_id);
     assert(address);
@@ -1358,11 +1385,6 @@ int rapido_prepare_new_address_frame(rapido_session_t *session, rapido_address_i
              ntohs(*SOCKADDR_PORT(address)));
     };
     return 0;
-}
-
-int rapido_prepare_open_tunnel_frame(rapido_session_t *session, struct sockaddr_storage *address, uint8_t *buf, size_t *len) {
-    assert(address);
-
 }
 
 int rapido_decode_new_address_frame(rapido_session_t *session, uint8_t *buf, size_t *len, rapido_new_address_frame_t *frame) {
@@ -1516,6 +1538,37 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
         }
     }
 
+    if (!wants_to_send) {
+        rapido_array_iter(&session->tunnels, i, rapido_tunnel_t *tunnel, {
+            // Set wants_to_send if there is a new tunnel waiting to be opened.
+            if (tunnel->state == TUNNEL_STATE_NEW) {
+                rapido_tunnel_control_frame_t tun_frame;
+                tun_frame.tunnel_id = tunnel->tunnel_id;
+
+                if (tunnel->destination_addr.ss_family == AF_INET) {
+                    tun_frame.family = 4;
+                    tun_frame.port = ((struct sockaddr_in *)&tunnel->destination_addr)->sin_port;
+                    memcpy(tun_frame.addr, (void *)&((struct sockaddr_in *)&tunnel->destination_addr)->sin_addr, 4);
+                } else {
+                    tun_frame.family = 6;
+                    tun_frame.port = ((struct sockaddr_in6 *)&tunnel->destination_addr)->sin6_port;
+                    memcpy(tun_frame.addr, (void *)&((struct sockaddr_in6 *)&tunnel->destination_addr)->sin6_addr, 16);
+                }
+
+                rapido_queued_frame_t queue_frame = { 0 };
+                queue_frame.type = tunnel_control_type;
+                queue_frame.tun_ctrl_frame = tun_frame;
+
+                memcpy(rapido_queue_push(&connection->frame_queue), &queue_frame, sizeof(rapido_queued_frame_t));
+
+                wants_to_send = true;
+            }
+        });
+        LOG if (wants_to_send) {
+            reason = "New tunnel to open";
+        }
+    };
+
     if (!wants_to_send) rapido_set_iter(&connection->retransmit_connections, i, rapido_connection_id_t connection_id, {
         rapido_connection_t *source_connection = rapido_array_get(&session->connections, connection_id);
         if (source_connection->sent_records.size > 0) {
@@ -1553,7 +1606,7 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
         }
     }
 
-    LOG {
+    LOG if (wants_to_send) {
         QLOG(session, "connection", "rapido_connection_wants_to_send", "", "{\"connection_id\": \"%d\", \"reason\": \"%s\", \"wants_to_send\": \"%d\", \"is_blocked\": \"%d\"}",
              connection->connection_id, reason, wants_to_send, is_blocked == NULL ? NULL : *is_blocked);
     };
@@ -1620,6 +1673,9 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
                 break;
             case ping_frame_type:
                 rapido_prepare_ping_frame(session, cleartext + consumed, &frame_length);
+                break;
+            case tunnel_control_type:
+                rapido_prepare_tunnel_control_frame(session, frame, cleartext + consumed, &frame_length);
                 break;
             default:
                 todo("Unsupported frame in the frame queue" != 0);
