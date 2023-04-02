@@ -300,14 +300,24 @@ typedef struct {
 
 typedef struct {
     rapido_tunnel_id_t tunnel_id;
-    rapido_stream_t *stream;
+
+    rapido_set_t connections;
     uint8_t state;
+
+    rapido_range_buffer_t read_buffer;
+    rapido_buffer_t send_buffer;
+
+    bool fin_received;
+    bool fin_sent;
 
     struct sockaddr_storage destination_addr;
     union {
         int ipc_sockets[2];  // For client
         int destination_socket;  // For server
     };
+
+    uint64_t bytes_received;
+    uint64_t bytes_sent;
 } rapido_tunnel_t;
 
 typedef struct {
@@ -367,7 +377,7 @@ int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t co
 int rapido_close_session(rapido_session_t *session, rapido_connection_id_t connection_id);
 
 /** Open a new tunnel using a stream. */
-rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session, rapido_stream_id_t stream);
+rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session);
 
 /** Add a new stream to the session. */
 rapido_stream_id_t rapido_open_stream(rapido_session_t *session);

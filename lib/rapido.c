@@ -1005,13 +1005,13 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
     return 0;
 }
 
-rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session, rapido_stream_id_t stream_id) {
-    rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
+rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session) {
     rapido_tunnel_t *tunnel = rapido_array_add(&session->tunnels, session->next_tunnel_id);
     memset(tunnel, 0, sizeof(rapido_tunnel_t));
     tunnel->tunnel_id = session->next_tunnel_id++; // FIXME Might need to be a += 2 ?
-    tunnel->stream = stream;
     tunnel->state = TUNNEL_STATE_NEW;
+    rapido_range_buffer_init(&tunnel->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
+    rapido_buffer_init(&tunnel->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
     QLOG(session, "api", "rapido_open_tunnel", "", "{\"tunnel_id\": \"%d\"}", tunnel->tunnel_id);
     return tunnel->tunnel_id;
 }
@@ -1032,6 +1032,7 @@ rapido_stream_id_t rapido_open_stream(rapido_session_t *session) {
     QLOG(session, "api", "rapido_open_stream", "", "{\"stream_id\": \"%d\"}", next_stream_id);
     return next_stream_id;
 }
+
 int rapido_attach_stream(rapido_session_t *session, rapido_stream_id_t stream_id, rapido_connection_id_t connection_id) {
     rapido_stream_t *stream = rapido_array_get(&session->streams, stream_id);
     assert(stream != NULL);
@@ -1345,18 +1346,61 @@ int rapido_prepare_tunnel_control_frame(rapido_session_t *session, rapido_queued
     memcpy(buf + consumed, tun_frame->addr, addr_len);
     consumed += addr_len;
     *(uint16_t *)(buf + consumed) = tun_frame->port;
+    consumed += sizeof(uint16_t);
     *len = consumed;
     LOG {
         char ip_string[46];
         inet_ntop(tun_frame->family == 4 ? AF_INET : AF_INET6, tun_frame->addr, ip_string, 46);
         QLOG(session, "frames", "rapido_prepare_tunnel_control_frame", "",
                 "{\"tunnel_id\": \"%d\", \"family\": \"%d\", \"address\": \"%s\", \"port\": \"%d\"}", tun_frame->tunnel_id, tun_frame->family, ip_string,
-                ntohs(tun_frame->port));
+                tun_frame->port, ntohs(tun_frame->port));
     };
     
     ((rapido_tunnel_t*) rapido_array_get(&session->tunnels, tun_frame->tunnel_id))->state = TUNNEL_STATE_CONNECTING;
     return 0;
 }
+
+int rapido_decode_tunnel_control_frame(rapido_session_t *session, uint8_t *buf, size_t *len, rapido_tunnel_control_frame_t *frame) {
+    // Check if size is enough for type(1) + tunnel_id(1) + family(1) + addr(4 or 16) + port(2)
+    assert(*len >= 1 + sizeof(rapido_tunnel_id_t) + 1 + 4 + sizeof(uint16_t));
+    size_t consumed = 1;
+    frame->tunnel_id = *(uint8_t *)(buf + consumed++);
+    frame->family = *(uint8_t *)(buf + consumed++);
+    size_t addr_len = frame->family == 4 ? 4 : 16;
+    memcpy(&frame->addr, (buf + consumed), addr_len);
+    consumed += addr_len;
+    frame->port = *((uint16_t *)(buf + consumed));
+    consumed += sizeof(uint16_t);
+    LOG {
+        char ip_string[46];
+        inet_ntop(frame->family == 4 ? AF_INET : AF_INET6, frame->addr, ip_string, 46);
+        QLOG(session, "frames", "rapido_decode_tunnel_control_frame", "", "{\"tunnel_id\": \"%d\", \"family\": \"%d\", \"address\": \"%s\", \"port\": \"%d\"}",
+            frame->tunnel_id, frame->family, ip_string, ntohs(frame->port));
+    }
+    return 0;
+}
+
+int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel_control_frame_t *frame) {
+    if (session->is_server) {
+        assert(frame->family == 4 || frame->family == 6);
+    } else {
+        return -1;  // FIXME Not implemented
+    }
+    return 0;
+}
+
+int rapido_prepare_tunnel_data_frame(rapido_session_t *session, rapido_queued_frame_t *frame, uint8_t *buf, size_t *len) {
+    ;
+}
+
+int rapido_decode_tunnel_data_frame(rapido_session_t *session, uint8_t *buf, size_t *len, rapido_tunnel_data_frame_t *frame) {
+    ;
+}
+
+int rapido_process_tunnel_data_frame(rapido_session_t *session, rapido_tunnel_data_frame_t *frame) {
+    ;
+}
+
 
 int rapido_prepare_new_address_frame(rapido_session_t *session, rapido_address_id_t address_id, uint8_t *buf, size_t *len) {
     struct sockaddr_storage *address = rapido_array_get(&session->local_addresses, address_id);
@@ -2072,10 +2116,16 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
                 assert(rapido_process_connection_reset_frame(session, &frame) == 0);
             } break;
             case tunnel_control_type: {
-                fprintf(stderr, "Received a tunnel control frame!");
+                fprintf(stderr, "Received a tunnel control frame!\n");
+                rapido_tunnel_control_frame_t frame;
+                assert(rapido_decode_tunnel_control_frame(session, plaintext.base + processed, &len, &frame) == 0);
+                assert(rapido_process_tunnel_control_frame(session, &frame) == 0);
             } break;
             case tunnel_data_type: {
-                fprintf(stderr, "Received a tunnel data frame!");
+                fprintf(stderr, "Received a tunnel data frame!\n");
+                rapido_tunnel_data_frame_t frame;
+                assert(rapido_decode_tunnel_data_frame(session, plaintext.base + processed, &len, &frame) == 0);
+                assert(rapido_process_tunnel_data_frame(session, &frame) == 0);
             } break;
             default:
                 WARNING("Unsupported frame type: %d\n", frame_type);

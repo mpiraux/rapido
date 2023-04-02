@@ -6,6 +6,7 @@
 #include <openssl/pem.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 
 #define RUN_NETWORK_TIMEOUT 100
 
@@ -54,7 +55,7 @@ int main(int argc, char *argv[]) {
             notification = rapido_queue_pop(&session->pending_notifications);
             if (notification->notification_type == rapido_new_stream) {
                 fprintf(stdout, "Received a new stream with ID %x\n", notification->stream_id);
-                tun_id = rapido_open_tunnel(session, notification->stream_id);
+                tun_id = rapido_open_tunnel(session);
                 tun = rapido_array_get(&session->tunnels, tun_id);
                 tun->destination_addr = tunnel_endpoint;
             } else if (notification->notification_type == rapido_stream_has_data) {
