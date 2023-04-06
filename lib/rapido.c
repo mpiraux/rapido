@@ -1007,7 +1007,6 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
 
 void rapido_tunnel_init(rapido_session_t *session, rapido_tunnel_t *tunnel) {
     memset(tunnel, 0, sizeof(rapido_tunnel_t));
-    tunnel->tunnel_id = session->next_tunnel_id++; // FIXME Might need to be a += 2 ?
     tunnel->state = TUNNEL_STATE_NEW;
     rapido_range_buffer_init(&tunnel->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
     rapido_buffer_init(&tunnel->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
@@ -1016,6 +1015,7 @@ void rapido_tunnel_init(rapido_session_t *session, rapido_tunnel_t *tunnel) {
 rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session) {
     rapido_tunnel_t *tunnel = rapido_array_add(&session->tunnels, session->next_tunnel_id);
     rapido_tunnel_init(session, tunnel);
+    tunnel->tunnel_id = session->next_tunnel_id++; // FIXME Might need to be a += 2 ?
     QLOG(session, "api", "rapido_open_tunnel", "", "{\"tunnel_id\": \"%d\"}", tunnel->tunnel_id);
     return tunnel->tunnel_id;
 }
@@ -1385,10 +1385,26 @@ int rapido_decode_tunnel_control_frame(rapido_session_t *session, uint8_t *buf, 
 }
 
 int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel_control_frame_t *frame) {
+    rapido_tunnel_t *tunnel = rapido_array_get(&session->tunnels, frame->tunnel_id);
     if (session->is_server) {
         assert(frame->family == 4 || frame->family == 6);
-        assert(rapido_array_get(&session->tunnels, frame->tunnel_id) == NULL);  // Check tunnel_id does not already exist
-
+        if (!tunnel) {  // Check tunnel_id does not already exist
+            tunnel = (rapido_tunnel_t*) rapido_array_add(&session->tunnels, frame->tunnel_id);
+            rapido_tunnel_init(session, tunnel);
+            tunnel->tunnel_id = frame->tunnel_id;
+            if (frame->family == 4) {  // IPv4
+                struct sockaddr_in addr;
+                addr.sin_port = frame->port;
+                memcpy(&addr.sin_addr, &frame->addr, sizeof(struct in_addr));
+                tunnel->destination_addr = *(struct sockaddr_storage *)&addr;
+            } else {  // IPv6
+                struct sockaddr_in6 addr;
+                addr.sin6_port = frame->port;
+                memcpy(&addr.sin6_addr, &frame->addr, sizeof(struct in6_addr));
+                tunnel->destination_addr = *(struct sockaddr_storage *)&addr;
+            }
+            tunnel->state = TUNNEL_STATE_NEW;
+        }
     } else {
         return -1;  // FIXME Not implemented
     }
@@ -1591,7 +1607,7 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
     if (!wants_to_send) {
         rapido_array_iter(&session->tunnels, i, rapido_tunnel_t *tunnel, {
             // Set wants_to_send if there is a new tunnel waiting to be opened.
-            if (tunnel->state == TUNNEL_STATE_NEW) {
+            if (tunnel->state == TUNNEL_STATE_NEW && !session->is_server) {
                 rapido_tunnel_control_frame_t tun_frame;
                 tun_frame.tunnel_id = tunnel->tunnel_id;
 
@@ -2334,6 +2350,29 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                 connections_index[nfds] = i;
                 fd_types[nfds] = fd_pending_connection;
                 nfds++;
+            });
+            rapido_array_iter(&session->tunnels, i, rapido_tunnel_t * tunnel, {
+                if (tunnel->state == TUNNEL_STATE_NEW) {  // Open connection to the destination
+                    int domain = tunnel->destination_addr.ss_family;
+                    if (tunnel->destination_sockfd = socket(domain, SOCK_STREAM, 0) >= 0 &&
+                        connect(
+                            tunnel->destination_sockfd,
+                            (struct sockaddr *)&tunnel->destination_addr,
+                            tunnel->destination_addr.ss_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6)
+                        ) == 0) {
+                            // Once socket is connected, mark tunnel as connected.
+                            tunnel->state = TUNNEL_STATE_READY;
+                            QLOG(session, "api", "rapido_run_network", "", "{\"tunnel_id\": \"%d\", \"state\": \"READY\"}",
+                                tunnel->tunnel_id);
+                        } else {
+                            // On failure, mark tunnel as failed, and log the last error.
+                            tunnel->state = TUNNEL_STATE_FAILED;
+                            QLOG(session, "error", "rapido_run_network", "", "{\"tunnel_id\": \"%d\", \"error\": \"%s\"}",
+                                tunnel->tunnel_id, strerror(errno));
+                            QLOG(session, "api", "rapido_run_network", "", "{\"tunnel_id\": \"%d\", \"state\": \"FAILED\"}",
+                                tunnel->tunnel_id);
+                        }
+                }
             });
         }
         bool wants_to_write = false;

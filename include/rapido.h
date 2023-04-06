@@ -313,7 +313,7 @@ typedef struct {
     struct sockaddr_storage destination_addr;
     union {
         int ipc_sockets[2];  // For client
-        int destination_socket;  // For server
+        int destination_sockfd;  // For server
     };
 
     uint64_t bytes_received;
