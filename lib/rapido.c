@@ -1005,13 +1005,17 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
     return 0;
 }
 
-rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session) {
-    rapido_tunnel_t *tunnel = rapido_array_add(&session->tunnels, session->next_tunnel_id);
+void rapido_tunnel_init(rapido_session_t *session, rapido_tunnel_t *tunnel) {
     memset(tunnel, 0, sizeof(rapido_tunnel_t));
     tunnel->tunnel_id = session->next_tunnel_id++; // FIXME Might need to be a += 2 ?
     tunnel->state = TUNNEL_STATE_NEW;
     rapido_range_buffer_init(&tunnel->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
     rapido_buffer_init(&tunnel->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
+}
+
+rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session) {
+    rapido_tunnel_t *tunnel = rapido_array_add(&session->tunnels, session->next_tunnel_id);
+    rapido_tunnel_init(session, tunnel);
     QLOG(session, "api", "rapido_open_tunnel", "", "{\"tunnel_id\": \"%d\"}", tunnel->tunnel_id);
     return tunnel->tunnel_id;
 }
@@ -1383,6 +1387,8 @@ int rapido_decode_tunnel_control_frame(rapido_session_t *session, uint8_t *buf, 
 int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel_control_frame_t *frame) {
     if (session->is_server) {
         assert(frame->family == 4 || frame->family == 6);
+        assert(rapido_array_get(&session->tunnels, frame->tunnel_id) == NULL);  // Check tunnel_id does not already exist
+
     } else {
         return -1;  // FIXME Not implemented
     }
