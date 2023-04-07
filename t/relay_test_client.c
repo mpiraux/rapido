@@ -6,7 +6,6 @@
 #include <openssl/pem.h>
 #include <stdio.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
 
 #define RUN_NETWORK_TIMEOUT 100
 

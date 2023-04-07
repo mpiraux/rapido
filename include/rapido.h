@@ -300,24 +300,13 @@ typedef struct {
 
 typedef struct {
     rapido_tunnel_id_t tunnel_id;
-
-    rapido_set_t connections;
     uint8_t state;
-
-    rapido_range_buffer_t read_buffer;
-    rapido_buffer_t send_buffer;
-
-    bool fin_received;
-    bool fin_sent;
 
     struct sockaddr_storage destination_addr;
     union {
         int ipc_sockets[2];  // For client
         int destination_sockfd;  // For server
     };
-
-    uint64_t bytes_received;
-    uint64_t bytes_sent;
 } rapido_tunnel_t;
 
 typedef struct {
