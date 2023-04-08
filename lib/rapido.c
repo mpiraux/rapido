@@ -1343,6 +1343,7 @@ int rapido_prepare_tunnel_control_frame(rapido_session_t *session, rapido_queued
     memcpy(buf + consumed, tun_frame->addr, addr_len);
     consumed += addr_len;
     *(uint16_t *)(buf + consumed) = tun_frame->port;
+    consumed += sizeof(uint16_t);
     *len = consumed;
     LOG {
         char ip_string[46];
@@ -1389,13 +1390,17 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
                 addr.sin_port = frame->port;
                 memcpy(&addr.sin_addr, &frame->addr, sizeof(struct in_addr));
                 tunnel->destination_addr = *(struct sockaddr_storage *)&addr;
+                tunnel->destination_addr.ss_family = AF_INET;
             } else {  // IPv6
                 struct sockaddr_in6 addr;
                 addr.sin6_port = frame->port;
                 memcpy(&addr.sin6_addr, &frame->addr, sizeof(struct in6_addr));
                 tunnel->destination_addr = *(struct sockaddr_storage *)&addr;
+                tunnel->destination_addr.ss_family = AF_INET6;
             }
             tunnel->state = TUNNEL_STATE_NEW;
+            QLOG(session, "api", "rapido_process_tunnel_control_frame", "", "{\"tunnel_id\": \"%d\", \"state\": \"NEW\"}",
+                tunnel->tunnel_id);
         }
     } else {
         return -1;  // FIXME Not implemented
@@ -2131,6 +2136,9 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
             } break;
             case tunnel_control_type: {
                 fprintf(stderr, "Received a tunnel control frame!\n");
+                rapido_tunnel_control_frame_t frame;
+                assert(rapido_decode_tunnel_control_frame(session, plaintext.base + processed, &len, &frame) == 0);
+                assert(rapido_process_tunnel_control_frame(session, &frame) == 0);
             } break;
             case tunnel_data_type: {
                 fprintf(stderr, "Received a tunnel data frame!\n");
@@ -2352,6 +2360,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                                 tunnel->tunnel_id);
                         } else {
                             // On failure, mark tunnel as failed, and log the last error.
+                            fprintf(stderr, "SS_FAMILY = %d", tunnel->destination_addr.ss_family);
                             tunnel->state = TUNNEL_STATE_FAILED;
                             QLOG(session, "error", "rapido_run_network", "", "{\"tunnel_id\": \"%d\", \"error\": \"%s\"}",
                                 tunnel->tunnel_id, strerror(errno));
