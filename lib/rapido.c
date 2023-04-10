@@ -641,8 +641,8 @@ static const rapido_frame_type_t new_session_id_frame_type = 0x4;
 static const rapido_frame_type_t new_address_frame_type = 0x5;
 static const rapido_frame_type_t connection_reset_frame_type = 0x6;
 static __attribute__((unused)) const rapido_frame_type_t ebpf_code_frame_type = 0x7;
-static const rapido_frame_type_t tunnel_control_type = 0x8;
-static const rapido_frame_type_t tunnel_data_type = 0x9;
+static const rapido_frame_type_t tunnel_control_frame_type = 0x8;
+static const rapido_frame_type_t tunnel_data_frame_type = 0x9;
 
 typedef struct {
     rapido_stream_id_t stream_id;
@@ -1009,6 +1009,8 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
 rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session) {
     rapido_tunnel_t *tunnel = rapido_array_add(&session->tunnels, session->next_tunnel_id);
     memset(tunnel, 0, sizeof(rapido_tunnel_t));
+    rapido_range_buffer_init(&tunnel->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
+    rapido_buffer_init(&tunnel->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
     tunnel->tunnel_id = session->next_tunnel_id++; // FIXME Might need to be a += 2 ?
     tunnel->state = TUNNEL_STATE_NEW;
     QLOG(session, "api", "rapido_open_tunnel", "", "{\"tunnel_id\": \"%d\"}", tunnel->tunnel_id);
@@ -1336,7 +1338,7 @@ int rapido_prepare_tunnel_control_frame(rapido_session_t *session, rapido_queued
     size_t consumed = 0;
 
     rapido_tunnel_control_frame_t *tun_frame = &frame->tun_ctrl_frame;
-    buf[consumed++] = tunnel_control_type;
+    buf[consumed++] = tunnel_control_frame_type;
     buf[consumed++] = tun_frame->tunnel_id;
 
     if (tun_frame->family > 16) {  // If flags are set, no need to send address and port again
@@ -1430,11 +1432,49 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
 }
 
 int rapido_prepare_tunnel_data_frame(rapido_session_t *session, rapido_tunnel_t *tunnel, uint8_t *buf, size_t *len) {
-    ;
+    size_t tunnel_header_len = sizeof(rapido_frame_type_t) + sizeof(rapido_tunnel_id_t) + sizeof(uint16_t);
+    size_t consumed = 0;
+
+    if (*len < 1 + tunnel_header_len) {
+        *len = consumed;
+        return 0;
+    }
+
+    // Currently does not handle the max possible packet length (16-bit integer)
+    uint16_t payload_len = min(*len, TLS_MAX_RECORD_SIZE) - tunnel_header_len;
+    void *tunnel_data;
+    tunnel_data = rapido_buffer_pop(&tunnel->send_buffer, &payload_len); // Sets payload_len to buffered data length
+
+    *(rapido_frame_type_t *)(buf + consumed) = tunnel_data_frame_type;
+    consumed += sizeof(rapido_frame_type_t);
+    *(rapido_tunnel_id_t *)(buf + consumed) = tunnel->tunnel_id;
+    consumed += sizeof(rapido_tunnel_id_t);
+    *(uint16_t *)(buf + consumed) = htons(payload_len);
+    consumed += sizeof(uint16_t);
+    memcpy(buf + consumed, tunnel_data, payload_len);
+    consumed += payload_len;
+
+    QLOG(session, "frames", "prepare_tunnel_data_frame", "",
+         "{\"tunnel_id\": \"%u\", \"len\": \"%u\"}", tunnel->tunnel_id, payload_len);
+
+    *len = consumed;
+    return 0;
 }
 
 int rapido_decode_tunnel_data_frame(rapido_session_t *session, uint8_t *buf, size_t *len, rapido_tunnel_data_frame_t *frame) {
-    ;
+    size_t tunnel_header_len = sizeof(rapido_frame_type_t) + sizeof(rapido_tunnel_id_t) + sizeof(uint16_t);
+    assert(buf[0] == tunnel_data_frame_type);
+    assert(*len > tunnel_header_len);
+    size_t consumed = 1;
+    frame->tunnel_id = *(rapido_tunnel_id_t *)(buf + consumed);
+    consumed += sizeof(rapido_tunnel_id_t);
+    frame->len = ntohs(*(uint16_t *)(buf + consumed));
+    frame->data = buf + consumed;
+    consumed += frame->len;
+    *len = consumed;
+    QLOG(session, "frames", "decode_tunnel_data_frame", "",
+         "{\"tunnel_id\": \"%u\", \"len\": \"%u\"}", frame->tunnel_id, frame->len);
+    return 0;
 }
 
 int rapido_process_tunnel_data_frame(rapido_session_t *session, rapido_tunnel_data_frame_t *frame) {
@@ -1640,7 +1680,7 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
                 }
 
                 rapido_queued_frame_t queue_frame = { 0 };
-                queue_frame.type = tunnel_control_type;
+                queue_frame.type = tunnel_control_frame_type;
                 queue_frame.tun_ctrl_frame = tun_frame;
 
                 memcpy(rapido_queue_push(&connection->frame_queue), &queue_frame, sizeof(rapido_queued_frame_t));
@@ -1657,7 +1697,7 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
                 tun_frame.flags = TUNNEL_FLAG_READY;
                 
                 rapido_queued_frame_t queue_frame = { 0 };
-                queue_frame.type = tunnel_control_type;
+                queue_frame.type = tunnel_control_frame_type;
                 queue_frame.tun_ctrl_frame = tun_frame;
 
                 memcpy(rapido_queue_push(&connection->frame_queue), &queue_frame, sizeof(rapido_queued_frame_t));
@@ -1775,7 +1815,7 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
             case ping_frame_type:
                 rapido_prepare_ping_frame(session, cleartext + consumed, &frame_length);
                 break;
-            case tunnel_control_type:
+            case tunnel_control_frame_type:
                 rapido_prepare_tunnel_control_frame(session, frame, cleartext + consumed, &frame_length);
                 break;
             default:
@@ -2172,13 +2212,13 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
                 assert(rapido_decode_connection_reset_frame(session, plaintext.base + processed, &len, &frame) == 0);
                 assert(rapido_process_connection_reset_frame(session, &frame) == 0);
             } break;
-            case tunnel_control_type: {
+            case tunnel_control_frame_type: {
                 fprintf(stderr, "Received a tunnel control frame!\n");
                 rapido_tunnel_control_frame_t frame;
                 assert(rapido_decode_tunnel_control_frame(session, plaintext.base + processed, &len, &frame) == 0);
                 assert(rapido_process_tunnel_control_frame(session, &frame) == 0);
             } break;
-            case tunnel_data_type: {
+            case tunnel_data_frame_type: {
                 fprintf(stderr, "Received a tunnel data frame!\n");
             } break;
             default:
