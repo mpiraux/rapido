@@ -682,16 +682,17 @@ typedef struct {
 
 typedef struct {
     rapido_tunnel_id_t tunnel_id;
-    uint8_t family;
+    union {
+        uint8_t family;
+        uint8_t flags;
+    };
     uint8_t addr[16];
     uint16_t port;
 } rapido_tunnel_control_frame_t;
 
 typedef struct {
     rapido_tunnel_id_t tunnel_id;
-    uint64_t offset;
     size_t len;
-    uint8_t fin;
     uint8_t *data;
 } rapido_tunnel_data_frame_t;
 
@@ -1335,44 +1336,64 @@ int rapido_prepare_tunnel_control_frame(rapido_session_t *session, rapido_queued
     size_t consumed = 0;
 
     rapido_tunnel_control_frame_t *tun_frame = &frame->tun_ctrl_frame;
-    size_t addr_len = tun_frame->family == 4 ? 4 : 16;
-
     buf[consumed++] = tunnel_control_type;
     buf[consumed++] = tun_frame->tunnel_id;
-    buf[consumed++] = tun_frame->family;
-    memcpy(buf + consumed, tun_frame->addr, addr_len);
-    consumed += addr_len;
-    *(uint16_t *)(buf + consumed) = tun_frame->port;
-    consumed += sizeof(uint16_t);
+
+    if (tun_frame->family > 16) {  // If flags are set, no need to send address and port again
+        buf[consumed++] = tun_frame->flags;
+        ((rapido_tunnel_t*) rapido_array_get(&session->tunnels, tun_frame->tunnel_id))->state = TUNNEL_STATE_READY;
+    } else {
+        size_t addr_len = tun_frame->family == 4 ? 4 : 16;
+
+        buf[consumed++] = tun_frame->family;
+        memcpy(buf + consumed, tun_frame->addr, addr_len);
+        consumed += addr_len;
+        *(uint16_t *)(buf + consumed) = tun_frame->port;
+        consumed += sizeof(uint16_t);
+
+        LOG {
+            char ip_string[46];
+            inet_ntop(tun_frame->family == 4 ? AF_INET : AF_INET6, tun_frame->addr, ip_string, 46);
+            QLOG(session, "frames", "rapido_prepare_tunnel_control_frame", "",
+                    "{\"tunnel_id\": \"%d\", \"family\": \"%d\", \"address\": \"%s\", \"port\": \"%d\"}", tun_frame->tunnel_id, tun_frame->family, ip_string,
+                    ntohs(tun_frame->port));
+        };
+
+        ((rapido_tunnel_t*) rapido_array_get(&session->tunnels, tun_frame->tunnel_id))->state = TUNNEL_STATE_CONNECTING;
+    }
+
     *len = consumed;
-    LOG {
-        char ip_string[46];
-        inet_ntop(tun_frame->family == 4 ? AF_INET : AF_INET6, tun_frame->addr, ip_string, 46);
-        QLOG(session, "frames", "rapido_prepare_tunnel_control_frame", "",
-                "{\"tunnel_id\": \"%d\", \"family\": \"%d\", \"address\": \"%s\", \"port\": \"%d\"}", tun_frame->tunnel_id, tun_frame->family, ip_string,
-                ntohs(tun_frame->port));
-    };
     
-    ((rapido_tunnel_t*) rapido_array_get(&session->tunnels, tun_frame->tunnel_id))->state = TUNNEL_STATE_CONNECTING;
     return 0;
 }
 
 int rapido_decode_tunnel_control_frame(rapido_session_t *session, uint8_t *buf, size_t *len, rapido_tunnel_control_frame_t *frame) {
     // Check if size is enough for type(1) + tunnel_id(1) + family(1) + addr(4 or 16) + port(2)
-    assert(*len >= 1 + sizeof(rapido_tunnel_id_t) + 1 + 4 + sizeof(uint16_t));
+    assert(*len == 3 || *len == 9 || *len == 21);
     size_t consumed = 1;
     frame->tunnel_id = *(uint8_t *)(buf + consumed++);
-    frame->family = *(uint8_t *)(buf + consumed++);
-    size_t addr_len = frame->family == 4 ? 4 : 16;
-    memcpy(&frame->addr, (buf + consumed), addr_len);
-    consumed += addr_len;
-    frame->port = *((uint16_t *)(buf + consumed));
-    consumed += sizeof(uint16_t);
-    LOG {
-        char ip_string[46];
-        inet_ntop(frame->family == 4 ? AF_INET : AF_INET6, frame->addr, ip_string, 46);
-        QLOG(session, "frames", "rapido_decode_tunnel_control_frame", "", "{\"tunnel_id\": \"%d\", \"family\": \"%d\", \"address\": \"%s\", \"port\": \"%d\"}",
-            frame->tunnel_id, frame->family, ip_string, ntohs(frame->port));
+
+    if (*len == 3) {
+        frame->flags = *(uint8_t *)(buf + consumed++);
+
+        LOG {
+            QLOG(session, "frames", "rapido_decode_tunnel_control_frame", "", "{\"tunnel_id\": \"%d\", \"flags\": \"%#x\"}",
+                frame->tunnel_id, frame->flags);
+        }
+    } else {
+        frame->family = *(uint8_t *)(buf + consumed++);
+        size_t addr_len = frame->family == 4 ? 4 : 16;
+        memcpy(&frame->addr, (buf + consumed), addr_len);
+        consumed += addr_len;
+        frame->port = *((uint16_t *)(buf + consumed));
+        consumed += sizeof(uint16_t);
+
+        LOG {
+            char ip_string[46];
+            inet_ntop(frame->family == 4 ? AF_INET : AF_INET6, frame->addr, ip_string, 46);
+            QLOG(session, "frames", "rapido_decode_tunnel_control_frame", "", "{\"tunnel_id\": \"%d\", \"family\": \"%d\", \"address\": \"%s\", \"port\": \"%d\"}",
+                frame->tunnel_id, frame->family, ip_string, ntohs(frame->port));
+        }
     }
     return 0;
 }
@@ -1408,7 +1429,7 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
     return 0;
 }
 
-int rapido_prepare_tunnel_data_frame(rapido_session_t *session, rapido_queued_frame_t *frame, uint8_t *buf, size_t *len) {
+int rapido_prepare_tunnel_data_frame(rapido_session_t *session, rapido_tunnel_t *tunnel, uint8_t *buf, size_t *len) {
     ;
 }
 
@@ -1625,11 +1646,28 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
                 memcpy(rapido_queue_push(&connection->frame_queue), &queue_frame, sizeof(rapido_queued_frame_t));
 
                 wants_to_send = true;
+                LOG {
+                    reason = "New tunnel to open";
+                }
+            }
+            // Set wants_to_send if there is a tunnel that is open but not advertised
+            if (tunnel->state == TUNNEL_STATE_CONNECTED && session->is_server) {
+                rapido_tunnel_control_frame_t tun_frame;
+                tun_frame.tunnel_id = tunnel->tunnel_id;
+                tun_frame.flags = TUNNEL_FLAG_READY;
+                
+                rapido_queued_frame_t queue_frame = { 0 };
+                queue_frame.type = tunnel_control_type;
+                queue_frame.tun_ctrl_frame = tun_frame;
+
+                memcpy(rapido_queue_push(&connection->frame_queue), &queue_frame, sizeof(rapido_queued_frame_t));
+
+                wants_to_send = true;
+                LOG {
+                    reason = "Tunnel is now connected";
+                }
             }
         });
-        LOG if (wants_to_send) {
-            reason = "New tunnel to open";
-        }
     };
 
     if (!wants_to_send) rapido_set_iter(&connection->retransmit_connections, i, rapido_connection_id_t connection_id, {
@@ -2348,14 +2386,15 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
             rapido_array_iter(&session->tunnels, i, rapido_tunnel_t * tunnel, {
                 if (tunnel->state == TUNNEL_STATE_NEW) {  // Open connection to the destination
                     int domain = tunnel->destination_addr.ss_family;
-                    if (tunnel->destination_sockfd = socket(domain, SOCK_STREAM, 0) >= 0 &&
-                        connect(
+                    tunnel->destination_sockfd = socket(domain, SOCK_STREAM, 0);
+                    fprintf(stderr, "Destination socket FD is %d\n", tunnel->destination_sockfd);
+                    if (connect(
                             tunnel->destination_sockfd,
                             (struct sockaddr *)&tunnel->destination_addr,
                             tunnel->destination_addr.ss_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6)
                         ) == 0) {
                             // Once socket is connected, mark tunnel as connected.
-                            tunnel->state = TUNNEL_STATE_READY;
+                            tunnel->state = TUNNEL_STATE_CONNECTED;
                             QLOG(session, "api", "rapido_run_network", "", "{\"tunnel_id\": \"%d\", \"state\": \"READY\"}",
                                 tunnel->tunnel_id);
                         } else {
