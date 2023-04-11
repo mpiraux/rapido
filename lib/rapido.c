@@ -1013,8 +1013,18 @@ rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session) {
     rapido_buffer_init(&tunnel->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
     tunnel->tunnel_id = session->next_tunnel_id++; // FIXME Might need to be a += 2 ?
     tunnel->state = TUNNEL_STATE_NEW;
+
+    // If tunnel is being created on the client, open IPC Unix sockets
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, tunnel->ipc_sockets) == 0);
+
     QLOG(session, "api", "rapido_open_tunnel", "", "{\"tunnel_id\": \"%d\"}", tunnel->tunnel_id);
     return tunnel->tunnel_id;
+}
+
+int rapido_get_tunnel_fd(rapido_tunnel_t *tunnel) {
+    // Error-checking function to get the user-facing socket for a tunnel
+    assert(tunnel->state == TUNNEL_STATE_READY);
+    return tunnel->ipc_sockets[1];
 }
 
 void rapido_stream_init(rapido_session_t *session, rapido_stream_t *stream) {
@@ -1478,9 +1488,26 @@ int rapido_decode_tunnel_data_frame(rapido_session_t *session, uint8_t *buf, siz
 }
 
 int rapido_process_tunnel_data_frame(rapido_session_t *session, rapido_tunnel_data_frame_t *frame) {
-    ;
-}
+    rapido_tunnel_t *tunnel = rapido_array_get(&session->tunnels, frame->tunnel_id);
+    assert(tunnel->state == TUNNEL_STATE_READY);
+    assert(frame->len > 0);
+    
+    int written_bytes = 0;
+    if (session->is_server) {
+        // Server-side processing
+        written_bytes = write(tunnel->destination_sockfd, frame->data, frame->len);
+    } else {
+        // Client-side processing
+        written_bytes = write(tunnel->ipc_sockets[0], frame->data, frame->len);
+    }
 
+    assert(written_bytes == frame->len);
+
+    QLOG(session, "frames", "process_tunnel_data_frame", "",
+         "{\"tunnel_id\": \"%u\", \"len\": \"%u\"}", frame->tunnel_id, frame->len);
+
+    return 0;
+}
 
 int rapido_prepare_new_address_frame(rapido_session_t *session, rapido_address_id_t address_id, uint8_t *buf, size_t *len) {
     struct sockaddr_storage *address = rapido_array_get(&session->local_addresses, address_id);
@@ -1706,6 +1733,10 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
                 LOG {
                     reason = "Tunnel is now connected";
                 }
+            }
+            // Set wants_to_send if the client IPC socket or the server destination socket have data
+            if (tunnel->state == TUNNEL_STATE_READY && session->is_server) {
+                
             }
         });
     };
@@ -2423,7 +2454,8 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                 fd_types[nfds] = fd_pending_connection;
                 nfds++;
             });
-            rapido_array_iter(&session->tunnels, i, rapido_tunnel_t * tunnel, {
+           // rapido_array_iter(&session->tunnels, i, rapido_tunnel_t * tunnel, {
+                rapido_tunnel_t *tunnel; {
                 if (tunnel->state == TUNNEL_STATE_NEW) {  // Open connection to the destination
                     int domain = tunnel->destination_addr.ss_family;
                     tunnel->destination_sockfd = socket(domain, SOCK_STREAM, 0);
@@ -2447,7 +2479,24 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                                 tunnel->tunnel_id);
                         }
                 }
-            });
+
+                // Check if an open tunnel has received data on the destination socket
+                if (tunnel->state == TUNNEL_STATE_READY) {
+                    struct pollfd pfd;
+                    pfd.fd = tunnel->destination_sockfd;
+                    pfd.events = POLLIN;
+                    if (poll(&pfd, 1, timeout) > 0) {
+                        fprintf(stderr, "Destination socket is ready to be read!\n");
+                        uint8_t recvbuf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
+                        ssize_t data_len = recv(tunnel->destination_sockfd, recvbuf, TLS_MAX_ENCRYPTED_RECORD_SIZE, 0);
+                        assert(data_len >= 0);
+                        // Copy read buffer to the send queue for the tunnel
+                        rapido_buffer_push(&tunnel->send_buffer, recvbuf, data_len);
+                        fprintf(stderr, "Added %ld bytes to the tunnel TX buffer.", data_len);
+                    } // TODO: Add buffering code on the client-side
+                }
+            //});
+                };
         }
         bool wants_to_write = false;
         rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
