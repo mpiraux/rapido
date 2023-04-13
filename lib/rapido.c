@@ -2499,7 +2499,6 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
         } else {
             // Client-side tunneling code
             rapido_array_iter(&session->tunnels, i, rapido_tunnel_t *tunnel, {
-                rapido_tunnel_t *tunnel;
                 if (tunnel->state == TUNNEL_STATE_READY) {
                     struct pollfd pfd;
                     pfd.fd = tunnel->ipc_sockets[0];
