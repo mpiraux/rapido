@@ -1009,8 +1009,8 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
 rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session) {
     rapido_tunnel_t *tunnel = rapido_array_add(&session->tunnels, session->next_tunnel_id);
     memset(tunnel, 0, sizeof(rapido_tunnel_t));
-    rapido_range_buffer_init(&tunnel->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
-    rapido_buffer_init(&tunnel->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
+    //rapido_range_buffer_init(&tunnel->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
+    //rapido_buffer_init(&tunnel->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
     tunnel->tunnel_id = session->next_tunnel_id++; // FIXME Might need to be a += 2 ?
     tunnel->state = TUNNEL_STATE_NEW;
 
@@ -1436,8 +1436,17 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
                 tunnel->tunnel_id);
         }
     } else {
-        fprintf(stderr, "\nHELLO THIS IS BAD !!!\n");
-        return -1;  // FIXME Not implemented
+        switch (frame->flags)
+        {
+        case TUNNEL_FLAG_READY:
+            tunnel->state = TUNNEL_STATE_READY;
+            QLOG(session, "api", "rapido_process_tunnel_control_frame", "", "{\"tunnel_id\": \"%d\", \"state\": \"READY\"}",
+                tunnel->tunnel_id);
+            break;
+        default:
+            fprintf(stderr, "Error: Unknown tunnel control flags received by the client.");
+            return -1;
+        }
     }
     return 0;
 }
@@ -1454,7 +1463,7 @@ int rapido_prepare_tunnel_data_frame(rapido_session_t *session, rapido_tunnel_t 
     // Currently does not handle the max possible packet length (16-bit integer)
     uint16_t payload_len = min(*len, TLS_MAX_RECORD_SIZE) - tunnel_header_len;
     void *tunnel_data;
-    tunnel_data = rapido_buffer_pop(&tunnel->send_buffer, &payload_len); // Sets payload_len to buffered data length
+    //tunnel_data = rapido_buffer_pop(&tunnel->send_buffer, &payload_len); // Sets payload_len to buffered data length
 
     *(rapido_frame_type_t *)(buf + consumed) = tunnel_data_frame_type;
     consumed += sizeof(rapido_frame_type_t);
@@ -2485,7 +2494,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                 }
 
                 // Check if an open tunnel has received data on the destination socket
-                if (tunnel->state == TUNNEL_STATE_READY) {
+                /*if (tunnel->state == TUNNEL_STATE_READY) {
                     struct pollfd pfd;
                     pfd.fd = tunnel->destination_sockfd;
                     pfd.events = POLLIN;
@@ -2498,11 +2507,11 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                         rapido_buffer_push(&tunnel->send_buffer, recvbuf, data_len);
                         fprintf(stderr, "Added %ld bytes to the tunnel TX buffer.", data_len);
                     }
-                }
+                }*/
             });
         } else {
             // Client-side tunneling code
-            rapido_array_iter(&session->tunnels, i, rapido_tunnel_t *tunnel, {
+            /*rapido_array_iter(&session->tunnels, i, rapido_tunnel_t *tunnel, {
                 if (tunnel->state == TUNNEL_STATE_READY) {
                     struct pollfd pfd;
                     pfd.fd = tunnel->ipc_sockets[0];
@@ -2517,7 +2526,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                         fprintf(stderr, "Added %ld bytes to the tunnel TX buffer.", data_len);
                     }
                 }
-            });
+            });*/
         }
         bool wants_to_write = false;
         rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {

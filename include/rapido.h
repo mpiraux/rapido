@@ -310,9 +310,6 @@ typedef struct {
         int destination_sockfd;  // For server
     };
 
-    rapido_range_buffer_t read_buffer;
-    rapido_buffer_t send_buffer;
-
     uint64_t bytes_received;
     uint64_t bytes_sent;
 } rapido_tunnel_t;
