@@ -2454,8 +2454,8 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                 fd_types[nfds] = fd_pending_connection;
                 nfds++;
             });
-           // rapido_array_iter(&session->tunnels, i, rapido_tunnel_t * tunnel, {
-                rapido_tunnel_t *tunnel; {
+           rapido_array_iter(&session->tunnels, i, rapido_tunnel_t *tunnel, {
+                // Server-side tunneling code
                 if (tunnel->state == TUNNEL_STATE_NEW) {  // Open connection to the destination
                     int domain = tunnel->destination_addr.ss_family;
                     tunnel->destination_sockfd = socket(domain, SOCK_STREAM, 0);
@@ -2493,10 +2493,28 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                         // Copy read buffer to the send queue for the tunnel
                         rapido_buffer_push(&tunnel->send_buffer, recvbuf, data_len);
                         fprintf(stderr, "Added %ld bytes to the tunnel TX buffer.", data_len);
-                    } // TODO: Add buffering code on the client-side
+                    }
                 }
-            //});
-                };
+            });
+        } else {
+            // Client-side tunneling code
+            rapido_array_iter(&session->tunnels, i, rapido_tunnel_t *tunnel, {
+                rapido_tunnel_t *tunnel;
+                if (tunnel->state == TUNNEL_STATE_READY) {
+                    struct pollfd pfd;
+                    pfd.fd = tunnel->ipc_sockets[0];
+                    pfd.events = POLLIN;
+                    if (poll(&pfd, 1, timeout) > 0) {
+                        fprintf(stderr, "Client interface socket is ready to be read!\n");
+                        uint8_t recvbuf[TLS_MAX_ENCRYPTED_RECORD_SIZE];
+                        ssize_t data_len = recv(tunnel->ipc_sockets[0], recvbuf, TLS_MAX_ENCRYPTED_RECORD_SIZE, 0);
+                        assert(data_len >= 0);
+                        // Copy read buffer to the send queue for the tunnel
+                        rapido_buffer_push(&tunnel->send_buffer, recvbuf, data_len);
+                        fprintf(stderr, "Added %ld bytes to the tunnel TX buffer.", data_len);
+                    }
+                }
+            });
         }
         bool wants_to_write = false;
         rapido_array_iter(&session->connections, i, rapido_connection_t * connection, {
