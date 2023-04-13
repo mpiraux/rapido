@@ -35,7 +35,6 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-
     rapido_session_t *session = rapido_new_session(&ctx, false, host, stderr);
     rapido_address_id_t remote_addr = rapido_add_remote_address(session, (struct sockaddr *)&sa, salen);
     // rapido_address_id_t local_addr = rapido_add_address(session, (struct sockaddr *)&la, salen);

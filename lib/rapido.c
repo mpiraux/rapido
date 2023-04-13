@@ -1436,6 +1436,7 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
                 tunnel->tunnel_id);
         }
     } else {
+        fprintf(stderr, "\nHELLO THIS IS BAD !!!\n");
         return -1;  // FIXME Not implemented
     }
     return 0;
@@ -2251,6 +2252,9 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
             } break;
             case tunnel_data_frame_type: {
                 fprintf(stderr, "Received a tunnel data frame!\n");
+                rapido_tunnel_data_frame_t frame;
+                assert(rapido_decode_tunnel_data_frame(session, plaintext.base + processed, &len, &frame) == 0);
+                assert(rapido_process_tunnel_data_frame(session, &frame) == 0);
             } break;
             default:
                 WARNING("Unsupported frame type: %d\n", frame_type);
