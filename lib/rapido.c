@@ -1469,8 +1469,7 @@ int rapido_prepare_tunnel_data_frame(rapido_session_t *session, rapido_tunnel_t 
 
     // Currently does not handle the max possible packet length (16-bit integer)
     uint16_t payload_len = min(*len, TLS_MAX_RECORD_SIZE) - tunnel_header_len;
-    void *tunnel_data;
-    //tunnel_data = rapido_buffer_pop(&tunnel->send_buffer, &payload_len); // Sets payload_len to buffered data length
+    void *tunnel_data = rapido_buffer_pop(&tunnel->send_buffer, &payload_len); // Sets payload_len to buffered data length
 
     *(rapido_frame_type_t *)(buf + consumed) = tunnel_data_frame_type;
     consumed += sizeof(rapido_frame_type_t);
@@ -1752,8 +1751,8 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
                 }
             }
             // Set wants_to_send if the client IPC socket or the server destination socket have data
-            if (tunnel->state == TUNNEL_STATE_READY && session->is_server) {
-                
+            if (tunnel->state == TUNNEL_STATE_READY && tunnel->send_buffer.size) {
+                wants_to_send |= (tunnel->send_buffer.size > 0);
             }
         });
     };
@@ -1916,6 +1915,18 @@ int rapido_prepare_record(rapido_session_t *session, rapido_connection_t *connec
         if ((stream->producer && !stream->fin_set) || stream->send_buffer.size || (stream->fin_set && !stream->fin_sent)) {
             size_t frame_len = *len - consumed;
             assert(rapido_prepare_stream_frame(session, stream, cleartext + consumed, &frame_len) == 0);
+            consumed += frame_len;
+            *is_ack_eliciting = frame_len > 0;
+        }
+    });
+
+    rapido_array_iter(&session->tunnels, i, rapido_tunnel_t *tunnel, {
+        rapido_tunnel_t *tunnel;
+        if (consumed >= *len)
+            break;
+        if (tunnel->send_buffer.size) {
+            size_t frame_len = *len - consumed;
+            assert(rapido_prepare_tunnel_data_frame(session, tunnel, cleartext + consumed, &frame_len) == 0);
             consumed += frame_len;
             *is_ack_eliciting = frame_len > 0;
         }
@@ -2561,7 +2572,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                     pfd.fd = tunnel->ipc_sockets[0];
                     pfd.events = POLLIN;
                     if (poll(&pfd, 1, timeout) > 0) {
-                        fprintf(stderr, "Destination socket is ready to be read!\n");
+                        fprintf(stderr, "Local client socket is ready to be read!\n");
                         size_t recvbuf_max = TLS_MAX_ENCRYPTED_RECORD_SIZE;
                         uint8_t *recvbuf = rapido_buffer_alloc(&tunnel->read_buffer, &recvbuf_max, 1500);
                         ssize_t data_len = recv(tunnel->ipc_sockets[0], recvbuf, recvbuf_max, 0);

@@ -298,7 +298,9 @@ typedef struct {
 #define TUNNEL_STATE_READY 0x03
 #define TUNNEL_STATE_CLOSED 0x04
 #define TUNNEL_STATE_FAILED 0x05
-#define TUNNEL_FLAG_READY 0x80
+#define TUNNEL_FLAG_READY 0x10
+#define TUNNEL_FLAG_CLOSED 0x20
+#define TUNNEL_FLAG_FAILED 0x40
 
 typedef struct {
     rapido_tunnel_id_t tunnel_id;
