@@ -330,11 +330,15 @@ typedef struct {
         rapido_stream_closed,
         rapido_new_remote_address,
         rapido_session_closed,
+        rapido_tunnel_ready,
+        rapido_tunnel_closed,
+        rapido_tunnel_failed
     } notification_type;
 
     union {
         rapido_connection_id_t connection_id;
         rapido_stream_id_t stream_id;
+        rapido_tunnel_id_t tunnel_id;
         rapido_address_id_t address_id;
         void *app_ctx;
     };
@@ -377,6 +381,8 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
 
 /** Open a new tunnel using a stream. */
 rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session);
+/** Closes a tunnel. */
+int rapido_close_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id);
 
 /** Add a new stream to the session. */
 rapido_stream_id_t rapido_open_stream(rapido_session_t *session);
