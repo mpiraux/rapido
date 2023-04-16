@@ -692,7 +692,7 @@ typedef struct {
 
 typedef struct {
     rapido_tunnel_id_t tunnel_id;
-    size_t len;
+    uint16_t len;
     uint8_t *data;
 } rapido_tunnel_data_frame_t;
 
@@ -1358,7 +1358,7 @@ int rapido_prepare_tunnel_control_frame(rapido_session_t *session, rapido_queued
     buf[consumed++] = tunnel_control_frame_type;
     buf[consumed++] = tun_frame->tunnel_id;
 
-    if (tun_frame->family > 16) {  // If flags are set, no need to send address and port again
+    if (tun_frame->family > 15) {  // If flags are set, no need to send address and port again
         buf[consumed++] = tun_frame->flags;
         ((rapido_tunnel_t*) rapido_array_get(&session->tunnels, tun_frame->tunnel_id))->state = TUNNEL_STATE_READY;
     } else {
@@ -1468,20 +1468,20 @@ int rapido_prepare_tunnel_data_frame(rapido_session_t *session, rapido_tunnel_t 
     }
 
     // Currently does not handle the max possible packet length (16-bit integer)
-    uint16_t payload_len = min(*len, TLS_MAX_RECORD_SIZE) - tunnel_header_len;
+    size_t payload_len = min(*len, TLS_MAX_RECORD_SIZE) - tunnel_header_len;
     void *tunnel_data = rapido_buffer_pop(&tunnel->send_buffer, &payload_len); // Sets payload_len to buffered data length
 
     *(rapido_frame_type_t *)(buf + consumed) = tunnel_data_frame_type;
     consumed += sizeof(rapido_frame_type_t);
     *(rapido_tunnel_id_t *)(buf + consumed) = tunnel->tunnel_id;
     consumed += sizeof(rapido_tunnel_id_t);
-    *(uint16_t *)(buf + consumed) = htons(payload_len);
+    *(uint16_t *)(buf + consumed) = htons((uint16_t) payload_len);
     consumed += sizeof(uint16_t);
     memcpy(buf + consumed, tunnel_data, payload_len);
     consumed += payload_len;
 
     QLOG(session, "frames", "prepare_tunnel_data_frame", "",
-         "{\"tunnel_id\": \"%u\", \"len\": \"%u\"}", tunnel->tunnel_id, payload_len);
+         "{\"tunnel_id\": \"%u\", \"len\": \"%zd\"}", tunnel->tunnel_id, payload_len);
 
     *len = consumed;
     return 0;
@@ -1495,6 +1495,7 @@ int rapido_decode_tunnel_data_frame(rapido_session_t *session, uint8_t *buf, siz
     frame->tunnel_id = *(rapido_tunnel_id_t *)(buf + consumed);
     consumed += sizeof(rapido_tunnel_id_t);
     frame->len = ntohs(*(uint16_t *)(buf + consumed));
+    consumed += sizeof(uint16_t);
     frame->data = buf + consumed;
     consumed += frame->len;
     *len = consumed;
@@ -2522,7 +2523,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                         assert(data_len >= 0);
                         // Copy read buffer to the send queue for the tunnel
                         rapido_buffer_push(&tunnel->send_buffer, recvbuf, data_len);
-                        fprintf(stderr, "Added %ld bytes to the tunnel TX buffer.", data_len);
+                        fprintf(stderr, "Added %ld bytes to the tunnel TX buffer.\n", data_len);
                     }
                 }
             });
