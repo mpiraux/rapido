@@ -383,6 +383,8 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
 rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session);
 /** Closes a tunnel. */
 int rapido_close_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id);
+/** Get the socket file descriptor for an open and ready tunnel.*/
+int rapido_get_tunnel_fd(rapido_session_t *session, rapido_tunnel_id_t tunnel_id);
 
 /** Add a new stream to the session. */
 rapido_stream_id_t rapido_open_stream(rapido_session_t *session);

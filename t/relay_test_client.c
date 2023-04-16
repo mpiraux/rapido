@@ -45,23 +45,32 @@ int main(int argc, char *argv[]) {
     size_t readlen = 64;
 
     rapido_tunnel_id_t tun_id;
-    rapido_tunnel_t *tun;
+    rapido_tunnel_t *tun = NULL;
 
     while (!session->is_closed) {
         rapido_run_network(session, RUN_NETWORK_TIMEOUT);
+        if (!tun) {
+            tun_id = rapido_open_tunnel(session);
+            tun = rapido_array_get(&session->tunnels, tun_id);
+            tun->destination_addr = tunnel_endpoint;
+        }
+
         while (session->pending_notifications.size > 0) {
             notification = rapido_queue_pop(&session->pending_notifications);
-            if (notification->notification_type == rapido_new_stream) {
-                fprintf(stdout, "Received a new stream with ID %x\n", notification->stream_id);
-                tun_id = rapido_open_tunnel(session);
-                tun = rapido_array_get(&session->tunnels, tun_id);
-                tun->destination_addr = tunnel_endpoint;
-            } else if (notification->notification_type == rapido_stream_has_data) {
-                fprintf(stdout, "Stream %x has buffered data\n", notification->stream_id);
-                data = rapido_read_stream(session, notification->stream_id, &readlen);
-                fprintf(stdout, "Received data: %s\n", data);
-            } else if (notification->notification_type == rapido_stream_closed) {
-                fprintf(stdout, "No more data available in stream %x, now closed.", notification->stream_id);
+            if (notification->notification_type == rapido_tunnel_ready) {
+                const char payload[] = "Hello from client\n";
+                int fd = rapido_get_tunnel_fd(session, tun_id);
+                write(fd, &payload[0], sizeof(payload));
+            }
+
+            if (notification->notification_type == rapido_tunnel_failed) {
+                fprintf(stderr, "Client: A connection error occurred while opening tunnel.\n");
+                exit(-1);
+            }
+
+            if (notification->notification_type == rapido_tunnel_closed) {
+                fprintf(stderr, "Client: The remote closed the destination socket gracefully.\n");
+                exit(0);
             }
         }
         sleep(1);

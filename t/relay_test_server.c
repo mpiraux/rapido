@@ -54,11 +54,6 @@ int main(int argc, char *argv[]) {
             fprintf(stdout, "Accepting a connection\n");
             fprintf(stdout, "SessionID = %zd\n", server_session_index);
             server_session = ((rapido_session_t *) rapido_array_get(&(server->sessions), server_session_index));
-            fprintf(stdout, "Session is_closed = %d\n", server_session->is_closed);
-            active_server_stream_id = rapido_open_stream(server_session);
-            rapido_add_to_stream(server_session, active_server_stream_id, "", 1); // Blank stream message to init stream
-            // rapido_close_stream(server_session, active_server_stream_id);
-            rapido_attach_stream(server_session, active_server_stream_id, notification->connection_id);
             rapido_run_network(server_session, RUN_NETWORK_TIMEOUT);
             // rapido_close_session(server_session, notification->connection_id);
         } else {

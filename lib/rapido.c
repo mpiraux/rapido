@@ -1043,8 +1043,9 @@ int rapido_close_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id)
         tunnel->tunnel_id);
 };
 
-int rapido_get_tunnel_fd(rapido_tunnel_t *tunnel) {
+int rapido_get_tunnel_fd(rapido_session_t *session, rapido_tunnel_id_t tunnel_id) {
     // Error-checking function to get the user-facing socket for a tunnel
+    rapido_tunnel_t *tunnel = rapido_array_get(&session->tunnels, tunnel_id);
     assert(tunnel->state == TUNNEL_STATE_READY);
     return tunnel->ipc_sockets[1];
 }
