@@ -9,9 +9,6 @@
 
 #define RUN_NETWORK_TIMEOUT 100
 
-void ctx_load_cert(ptls_context_t *ctx, const char* cert_file);
-void ctx_add_sign_cert(ptls_context_t *ctx, const char* pk_file);
-
 int main(int argc, char *argv[]) {
     ptls_context_t ctx;
     struct sockaddr_storage sa, la;
