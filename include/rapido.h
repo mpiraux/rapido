@@ -296,8 +296,10 @@ typedef struct {
 #define TUNNEL_STATE_CONNECTING 0x01
 #define TUNNEL_STATE_CONNECTED 0x02
 #define TUNNEL_STATE_READY 0x03
-#define TUNNEL_STATE_CLOSED 0x04
-#define TUNNEL_STATE_FAILED 0x05
+#define TUNNEL_STATE_CLOSING 0x04
+#define TUNNEL_STATE_FAILING 0x05
+#define TUNNEL_STATE_CLOSED 0x06
+#define TUNNEL_STATE_FAILED 0x07
 #define TUNNEL_FLAG_READY 0x10
 #define TUNNEL_FLAG_CLOSED 0x20
 #define TUNNEL_FLAG_FAILED 0x40
@@ -306,14 +308,11 @@ typedef struct {
     rapido_tunnel_id_t tunnel_id;
     uint8_t state;
 
-    struct sockaddr_storage destination_addr;
-    union {
-        int ipc_sockets[2];  // For client
-        int destination_sockfd;  // For server
-    };
+    struct sockaddr_storage *nexthop_addr;
+    rapido_session_t *nexthop_session;
 
-    rapido_buffer_t read_buffer;
-    rapido_buffer_t send_buffer;
+    rapido_buffer_t *read_buffer;
+    rapido_buffer_t *send_buffer;
 
     uint64_t bytes_received;
     uint64_t bytes_sent;
@@ -379,12 +378,10 @@ int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t co
 /** Gracefully closes the session and send the TLS alert on the given connection. */
 int rapido_close_session(rapido_session_t *session, rapido_connection_id_t connection_id);
 
-/** Open a new tunnel using a stream. */
-rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session);
+/** Open a new tunnel within a session. */
+rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session, struct sockaddr_storage *nexthop_address);
 /** Closes a tunnel. */
 int rapido_close_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id);
-/** Get the socket file descriptor for an open and ready tunnel.*/
-int rapido_get_tunnel_fd(rapido_session_t *session, rapido_tunnel_id_t tunnel_id);
 
 /** Add a new stream to the session. */
 rapido_stream_id_t rapido_open_stream(rapido_session_t *session);

@@ -1010,48 +1010,49 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
     return 0;
 }
 
-void rapido_tunnel_init(rapido_session_t *session, rapido_tunnel_t *tunnel) {
+void rapido_tunnel_init(rapido_session_t *session, rapido_tunnel_t *tunnel, struct sockaddr_storage *nexthop_address) {
+    tunnel->tunnel_id = session->next_tunnel_id++;
+    tunnel->state = TUNNEL_STATE_NEW;
+    tunnel->nexthop_addr = nexthop_address;
+    tunnel->nexthop_session = NULL;
+
     memset(tunnel, 0, sizeof(rapido_tunnel_t));
     rapido_buffer_init(&tunnel->read_buffer, 2 * TLS_MAX_RECORD_SIZE);
     rapido_buffer_init(&tunnel->send_buffer, 2 * TLS_MAX_RECORD_SIZE);
 
-    if (!session->is_server) {
-        // If tunnel is being created on the client, open IPC Unix sockets
-        assert(socketpair(AF_UNIX, SOCK_STREAM, 0, tunnel->ipc_sockets) == 0);
+    // If there is a nexthop, open nested session and tunnel, and "cross connect" the rx/tx buffers.
+    if (nexthop_address) {
+        rapido_new_session(session->tls_ctx, false, )
     }
 }
 
-rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session) {
+rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session, struct sockaddr_storage *nexthop_address) {
     rapido_tunnel_t *tunnel = rapido_array_add(&session->tunnels, session->next_tunnel_id);
-    tunnel->tunnel_id = session->next_tunnel_id++;
-    tunnel->state = TUNNEL_STATE_NEW;
-    rapido_tunnel_init(session, tunnel);
+    rapido_tunnel_init(session, tunnel, nexthop_address);
 
     QLOG(session, "api", "rapido_open_tunnel", "", "{\"tunnel_id\": \"%d\"}", tunnel->tunnel_id);
     return tunnel->tunnel_id;
 }
 
-int rapido_close_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id) {
+int rapido_set_tunnel_nexthop(rapido_session_t *session, rapido_tunnel_id_t tunnel_id) {
     rapido_tunnel_t *tunnel = rapido_array_get(&session->tunnels, tunnel_id);
-    tunnel->state = TUNNEL_STATE_CLOSED;
-    
-    if (session->is_server) {
-        close(tunnel->destination_sockfd);
-    } else {
-        close(tunnel->ipc_sockets[0]);
-        close(tunnel->ipc_sockets[1]);
-    }
-
-    QLOG(session, "api", "rapido_process_tunnel_control_frame", "", "{\"tunnel_id\": \"%u\", \"state\": \"CLOSED\"}",
-        tunnel->tunnel_id);
+    assert(tunnel->state = TUNNEL_STATE_READY);
+    //TO DO
 };
 
-int rapido_get_tunnel_fd(rapido_session_t *session, rapido_tunnel_id_t tunnel_id) {
-    // Error-checking function to get the user-facing socket for a tunnel
+int rapido_close_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id) {
     rapido_tunnel_t *tunnel = rapido_array_get(&session->tunnels, tunnel_id);
-    assert(tunnel->state == TUNNEL_STATE_READY);
-    return tunnel->ipc_sockets[1];
-}
+    tunnel->state = TUNNEL_STATE_CLOSING;
+    
+    if (tunnel->nexthop_session) {
+        // Propagate the tunnel closure to the next hop
+        rapido_close_tunnel(&tunnel->nexthop_session, tunnel_id);
+    }
+    
+    QLOG(session, "api", "rapido_process_tunnel_control_frame", "", "{\"tunnel_id\": \"%u\", \"state\": \"CLOSED\"}",
+        tunnel->tunnel_id);
+    //TO DO
+};
 
 void rapido_stream_init(rapido_session_t *session, rapido_stream_t *stream) {
     memset(stream, 0, sizeof(rapido_stream_t));
