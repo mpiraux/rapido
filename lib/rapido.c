@@ -6,6 +6,9 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <linux/tcp.h>
+#include <stddef.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <errno.h>
 #include <poll.h>
 #include <time.h>
@@ -2581,7 +2584,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                                 tunnel->tunnel_id);
                         } else {
                             // On failure, mark tunnel as failed, and log the last error.
-                            fprintf(stderr, "SS_FAMILY = %d", tunnel->destination_addr.ss_family);
+                            fprintf(stderr, "SS_FAMILY = %d\n", tunnel->destination_addr.ss_family);
                             tunnel->state = TUNNEL_STATE_FAILED;
                             QLOG(session, "error", "rapido_run_network", "", "{\"tunnel_id\": \"%d\", \"error\": \"%s\"}",
                                 tunnel->tunnel_id, strerror(errno));
@@ -2599,10 +2602,12 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                         size_t recvbuf_max = TLS_MAX_ENCRYPTED_RECORD_SIZE;
                         uint8_t *recvbuf = rapido_buffer_alloc(&tunnel->read_buffer, &recvbuf_max, 1500);
                         ssize_t data_len = recv(tunnel->destination_sockfd, recvbuf, recvbuf_max, 0);
-                        if (data_len < 0) {
-                            // On failure, close tunnel and mark as failed.
+                        if (data_len <= 0) {
+                            // On failure or graceful termination, close tunnel and mark as failed if necessary.
                             rapido_close_tunnel(session, tunnel->tunnel_id);
-                            tunnel->state = TUNNEL_STATE_FAILED;
+                            if (data_len < 0) {
+                                tunnel->state = TUNNEL_STATE_FAILED;
+                            }
                         } else {
                             // On success, copy read buffer to the send queue for the tunnel
                             rapido_buffer_push(&tunnel->send_buffer, recvbuf, data_len);

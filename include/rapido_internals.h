@@ -10,5 +10,6 @@ void rapido_range_buffer_init(rapido_range_buffer_t *receive, size_t capacity);
 int rapido_range_buffer_write(rapido_range_buffer_t *receive, size_t offset, void *input, size_t len);
 void *rapido_range_buffer_get(rapido_range_buffer_t *receive, size_t *len);
 void rapido_range_buffer_free(rapido_range_buffer_t *receive);
+void rapido_buffer_push(rapido_buffer_t *buffer, void *input, size_t len);
 
 #endif // PICOTLS_RAPIDO_INTERNALS_H
