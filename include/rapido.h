@@ -403,6 +403,8 @@ int rapido_close_session(rapido_session_t *session, rapido_connection_id_t conne
 
 /** Open a new tunnel within a session. */
 rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session);
+/** Extend the tunnel by opening a connection to the next hop. */
+void rapido_extend_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id, const char* hostname, const char* port);
 
 /** Read data from the tunnel read buffer. */
 void *rapido_read_from_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id, size_t *len);

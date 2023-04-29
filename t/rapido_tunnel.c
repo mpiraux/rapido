@@ -35,8 +35,8 @@ static void usage(const char *cmd) {
 
 int main(int argc, char *argv[]) {
     ptls_context_t ctx;
-    struct sockaddr_storage sa, la;
-    socklen_t salen, lalen;
+    struct sockaddr_storage sa;
+    socklen_t salen;
 
     int ch;
     bool client_mode = 0;
@@ -109,6 +109,7 @@ int main(int argc, char *argv[]) {
     ctx.cipher_suites = ptls_openssl_cipher_suites;
     ctx.get_time = &ptls_get_time;
 
+    // Resolve hostname
     if (resolve_address((struct sockaddr *)&sa, &salen, host, port, AF_INET, SOCK_STREAM, IPPROTO_TCP) != 0) {
         if (resolve_address((struct sockaddr *)&sa, &salen, host, port, AF_INET6, SOCK_STREAM, IPPROTO_TCP) != 0) {
             exit(1);
@@ -152,6 +153,9 @@ int main(int argc, char *argv[]) {
                     rapido_write_to_tunnel(server_session, notification->tunnel_id, reply, strlen(reply));
                 }
 
+            }
+
+            if (server_session) {
                 rapido_run_network(server_session, RUN_NETWORK_TIMEOUT);
             }
         }
@@ -169,6 +173,7 @@ int main(int argc, char *argv[]) {
 
         rapido_tunnel_id_t tun_id;
         rapido_tunnel_t *tun = NULL;
+        bool multihop_frame_sent = false;
 
         while (!session->is_closed) {
             if (!tun) {
@@ -181,7 +186,13 @@ int main(int argc, char *argv[]) {
                 if (notification->notification_type == rapido_tunnel_ready) {
                     // Tunnel is ready, send test message
                     const char *payload = "Hello from client!";
-                    rapido_write_to_tunnel(session, tun->tunnel_id, payload, strlen(payload));
+                    rapido_write_to_tunnel(session, tun_id, payload, strlen(payload));
+
+                    // If enabled, send the control frame to extend the tunnel to the relay specified with -j
+                    if (nexthop_hostname && nexthop_port && !multihop_frame_sent) {
+                        rapido_extend_tunnel(session, tun_id, nexthop_hostname, nexthop_port);
+                        multihop_frame_sent = true;
+                    }
                 }
 
                 if (notification->notification_type == rapido_tunnel_has_data) {
