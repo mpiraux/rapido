@@ -301,14 +301,36 @@ typedef struct {
 #define TUNNEL_STATE_CLOSED 0x06
 #define TUNNEL_STATE_FAILED 0x07
 #define TUNNEL_FLAG_READY 0x10
-#define TUNNEL_FLAG_CLOSED 0x20
-#define TUNNEL_FLAG_FAILED 0x40
+#define TUNNEL_FLAG_CONNECTING 0x11
+#define TUNNEL_FLAG_CLOSED 0x12
+#define TUNNEL_FLAG_FAILED 0x13
+#define TUNNEL_FLAG_DESTINATION 0x14
+
+typedef struct {
+    rapido_tunnel_id_t tunnel_id;
+    union {
+        uint8_t family;
+        uint8_t flags;
+    };
+    char hostname[255];
+    uint16_t port;
+} rapido_tunnel_control_frame_t;
 
 typedef struct {
     rapido_tunnel_id_t tunnel_id;
     uint8_t state;
+    enum {
+        rapido_tunnel_source,
+        rapido_tunnel_relay,
+        rapido_tunnel_destination
+    } role;
+    bool is_parent;
 
-    struct sockaddr_storage *nexthop_addr;
+    int announce_flag;
+    rapido_tunnel_control_frame_t announce_frame;
+
+    struct sockaddr_storage nexthop_addr;
+    char nexthop_host[255];
     rapido_session_t *nexthop_session;
 
     rapido_buffer_t *read_buffer;
@@ -330,6 +352,7 @@ typedef struct {
         rapido_new_remote_address,
         rapido_session_closed,
         rapido_tunnel_ready,
+        rapido_tunnel_has_data,
         rapido_tunnel_closed,
         rapido_tunnel_failed
     } notification_type;
@@ -379,9 +402,14 @@ int rapido_close_connection(rapido_session_t *session, rapido_connection_id_t co
 int rapido_close_session(rapido_session_t *session, rapido_connection_id_t connection_id);
 
 /** Open a new tunnel within a session. */
-rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session, struct sockaddr_storage *nexthop_address);
+rapido_tunnel_id_t rapido_open_tunnel(rapido_session_t *session);
+
+/** Read data from the tunnel read buffer. */
+void *rapido_read_from_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id, size_t *len);
+/** Write the given data to the tunnel send buffer. */
+int rapido_write_to_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id, const void *data, size_t len);
 /** Closes a tunnel. */
-int rapido_close_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id);
+void rapido_close_tunnel(rapido_session_t *session, rapido_tunnel_id_t tunnel_id);
 
 /** Add a new stream to the session. */
 rapido_stream_id_t rapido_open_stream(rapido_session_t *session);
