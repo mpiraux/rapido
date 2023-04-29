@@ -153,6 +153,16 @@ int main(int argc, char *argv[]) {
                     rapido_write_to_tunnel(server_session, notification->tunnel_id, reply, strlen(reply));
                 }
 
+                if (notification->notification_type == rapido_tunnel_failed) {
+                    fprintf(stderr, "Client: A connection error occurred while opening tunnel.\n");
+                    exit(-1);
+                }
+
+                if (notification->notification_type == rapido_tunnel_closed) {
+                    fprintf(stderr, "Client: The remote closed the destination socket gracefully.\n");
+                    exit(0);
+                }
+
             }
 
             if (server_session) {
