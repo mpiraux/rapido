@@ -16,7 +16,7 @@
 #include <sys/select.h>
 #include <sys/ioctl.h>
 
-#define RUN_NETWORK_TIMEOUT 100
+#define RUN_NETWORK_TIMEOUT 5
 
 void ctx_load_cert(ptls_context_t *ctx, const char* cert_file);
 void ctx_add_sign_cert(ptls_context_t *ctx, const char* pk_file);
@@ -94,7 +94,7 @@ void write_packets_from_tun(rapido_session_t *session, rapido_tunnel_id_t tun_id
     size_t read_len;
     void *buffer = malloc(1500);
 
-    if (poll(&pfd, 1, 100)) {
+    if (poll(&pfd, 1, 50)) {
         read_len = read(tun_fd, buffer, 1500);
         
         if (read_len == -1) {
@@ -242,22 +242,22 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (notification->notification_type == rapido_tunnel_has_data) {
-                    size_t len;
+                    size_t len = 1500;
                     void *buffer = rapido_read_from_tunnel(server_session, notification->tunnel_id, &len);
 
                     if (tun_interface || tap_interface) {
                         // If tunneling is enabled with --tun or --tap
-                        assert(len > 2);
+                        //assert(len > 2);
                         size_t consumed = 0;
 
                         while (consumed < len) {
-                            printf("Reading from TCPLS: Len = %lu, Consumed = %lu\n", len, consumed);
                             uint16_t packet_len = ntohs(*(uint16_t *)(buffer + consumed));
                             consumed += sizeof(uint16_t);
                             uint8_t *packet_data = (uint8_t *)(buffer + consumed);
 
                             int written_bytes = write(if_fd, packet_data, packet_len);
                             consumed += packet_len;
+                            printf("Reading from TCPLS: Len = %lu, PacketLen = %u, Consumed = %lu, Written bytes = %lu\n", len, packet_len, consumed, written_bytes);
                         }
 
                         printf("Tunnel interface: Received %lu bytes.\n", consumed);
@@ -331,23 +331,21 @@ int main(int argc, char *argv[]) {
 
                 if (notification->notification_type == rapido_tunnel_has_data) {
                     // Received data, print to stdout.
-                    size_t len;
+                    size_t len = 1500;
                     char *buffer = rapido_read_from_tunnel(session, notification->tunnel_id, &len);
                     if (tun_interface || tap_interface) {
                         // If tunneling is enabled with --tun or --tap
-                        assert(len > 2);
+                        //assert(len > 2);
                         size_t consumed = 0;
 
                         while (consumed < len) {
-                            printf("Reading from TCPLS: Len = %lu, Consumed = %lu\n", len, consumed);
                             uint16_t packet_len = ntohs(*(uint16_t *)(buffer + consumed));
                             consumed += sizeof(uint16_t);
-                            uint8_t *packet_data = (uint8_t *)(buffer + consumed);
+                            void *packet_data = (buffer + consumed);
 
-                            int written_bytes = write(if_fd, packet_data, packet_len);
+                            ssize_t written_bytes = write(if_fd, packet_data, packet_len);
                             consumed += packet_len;
-
-                            printf("Tunnel interface: Received %d bytes.\n", written_bytes);
+                            printf("Reading from TCPLS: Len = %lu, PacketLen = %u, Consumed = %lu, Written bytes = %lu\n", len, packet_len, consumed, written_bytes);
                         }
                     } else {
                         // In other cases

@@ -645,8 +645,8 @@ static const rapido_frame_type_t new_session_id_frame_type = 0x4;
 static const rapido_frame_type_t new_address_frame_type = 0x5;
 static const rapido_frame_type_t connection_reset_frame_type = 0x6;
 static __attribute__((unused)) const rapido_frame_type_t ebpf_code_frame_type = 0x7;
-static const rapido_frame_type_t tunnel_control_frame_type = 0x8;
-static const rapido_frame_type_t tunnel_data_frame_type = 0x9;
+static const rapido_frame_type_t tunnel_control_frame_type = 0x10;
+static const rapido_frame_type_t tunnel_data_frame_type = 0x11;
 
 typedef struct {
     rapido_stream_id_t stream_id;
@@ -2788,7 +2788,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
 
     rapido_array_iter(&session->tunnels, i, rapido_tunnel_t *tunnel, {
         if (tunnel->nexthop_session && tunnel->is_parent) {
-            rapido_run_network(tunnel->nexthop_session, timeout/2);
+            rapido_run_network(tunnel->nexthop_session, timeout);
         }
     });
     return 0;
