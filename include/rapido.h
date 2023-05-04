@@ -300,6 +300,8 @@ typedef struct {
 #define TUNNEL_STATE_FAILING 0x05
 #define TUNNEL_STATE_CLOSED 0x06
 #define TUNNEL_STATE_FAILED 0x07
+#define TUNNEL_FAMILY_IPV4 0x04
+#define TUNNEL_FAMILY_IPV6 0x06
 #define TUNNEL_FLAG_READY 0x10
 #define TUNNEL_FLAG_CONNECTING 0x11
 #define TUNNEL_FLAG_CLOSED 0x12
@@ -313,6 +315,7 @@ typedef struct {
         uint8_t flags;
     };
     char hostname[255];
+    uint8_t addr[16];
     uint16_t port;
 } rapido_tunnel_control_frame_t;
 

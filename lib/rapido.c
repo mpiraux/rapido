@@ -1656,6 +1656,8 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
 
                 rapido_tunnel_init(session, tunnel, frame->hostname, &tunnel_endpoint, tunnel_endpoint_len);
                 tunnel->tunnel_id = frame->tunnel_id;
+                rapido_tunnel_set_state(session, tunnel, TUNNEL_STATE_CONNECTING, "rapido_process_tunnel_control_frame");
+                tunnel->announce_flag = TUNNEL_FLAG_CONNECTING;
             }
         }
     }
