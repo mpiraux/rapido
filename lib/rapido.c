@@ -1489,9 +1489,13 @@ int rapido_prepare_tunnel_control_frame(rapido_session_t *session, rapido_queued
                     "{\"tunnel_id\": \"%d\", \"flags\": \"%d\"}", tun_frame->tunnel_id, tun_frame->flags);
         };
     } else {
+        size_t addr_len = tun_frame->family == TUNNEL_FAMILY_IPV4 ? 4 : 16;
+
         buf[consumed++] = tun_frame->family;
         strncpy(buf + consumed, tun_frame->hostname, sizeof(char[255]));
         consumed += strlen(tun_frame->hostname) + 1;
+        memcpy(buf + consumed, tun_frame->addr, addr_len);
+        consumed += addr_len;
         *(uint16_t *)(buf + consumed) = tun_frame->port;
         consumed += sizeof(uint16_t);
 
@@ -1524,14 +1528,19 @@ int rapido_decode_tunnel_control_frame(rapido_session_t *session, uint8_t *buf, 
         }
     } else {
         frame->family = *(uint8_t *)(buf + consumed++);
+        size_t addr_len = frame->family == TUNNEL_FAMILY_IPV4 ? 4 : 16;
         strncpy((char *)&frame->hostname[0], (char *)(buf + consumed), sizeof(char[255]));
         consumed += strlen(frame->hostname) + 1;
+        memcpy(&frame->addr, (buf + consumed), addr_len);
+        consumed += addr_len;
         frame->port = *((uint16_t *)(buf + consumed));
         consumed += sizeof(uint16_t);
 
         LOG {
-            QLOG(session, "frames", "rapido_decode_tunnel_control_frame", "", "{\"tunnel_id\": \"%d\", \"family\": \"%d\", \"hostname\": \"%s\", \"port\": \"%d\"}",
-                frame->tunnel_id, frame->family, frame->hostname, ntohs(frame->port));
+            char ip_string[46];
+            inet_ntop(frame->family == TUNNEL_FAMILY_IPV4 ? AF_INET : AF_INET6, frame->addr, ip_string, 46);
+            QLOG(session, "frames", "rapido_decode_tunnel_control_frame", "", "{\"tunnel_id\": \"%d\", \"family\": \"%d\", \"address\": \"%s\", \"hostname\": \"%s\", \"port\": \"%d\"}",
+                frame->tunnel_id, frame->family, ip_string, frame->hostname, ntohs(frame->port));
         }
     }
     return 0;
@@ -1553,12 +1562,6 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
             socklen_t tunnel_endpoint_len;
             char str_port[6];
             snprintf(str_port, 6, "%u", ntohs(frame->port));
-            if (resolve_address((struct sockaddr *)&tunnel_endpoint, &tunnel_endpoint_len, frame->hostname, str_port, AF_INET, SOCK_STREAM, IPPROTO_TCP) != 0) {
-                if (resolve_address((struct sockaddr *)&tunnel_endpoint, &tunnel_endpoint_len, frame->hostname, str_port, AF_INET6, SOCK_STREAM, IPPROTO_TCP) != 0) {
-                    fprintf(stderr, "Error: Could not resolve the tunnel endpoint.");
-                    exit(1);
-                }
-            }
 
             rapido_tunnel_init(session, tunnel, frame->hostname, &tunnel_endpoint, tunnel_endpoint_len);
             tunnel->tunnel_id = frame->tunnel_id;
