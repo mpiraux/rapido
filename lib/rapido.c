@@ -1515,7 +1515,7 @@ int rapido_prepare_tunnel_control_frame(rapido_session_t *session, rapido_queued
 
 int rapido_decode_tunnel_control_frame(rapido_session_t *session, uint8_t *buf, size_t *len, rapido_tunnel_control_frame_t *frame) {
     // Check if size is enough for type(1) + tunnel_id(1) + family(1) + addr(4 or 16) + port(2)
-    assert(*len == 3 || (*len >= 6 && *len <= 260));
+    assert(*len == 3 || (*len >= 6 && *len <= 276));
     size_t consumed = 1;
     frame->tunnel_id = *(uint8_t *)(buf + consumed++);
 
@@ -1560,6 +1560,15 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
             // Request to complete tunnel with another hop
             struct sockaddr_storage tunnel_endpoint;
             socklen_t tunnel_endpoint_len;
+
+            if (frame->family == TUNNEL_FAMILY_IPV4) {
+                tunnel_endpoint_len = sizeof(struct sockaddr_in);
+                memcpy(&((struct sockaddr_in *)&tunnel_endpoint)->sin_addr, &frame->addr[0], 4);
+
+            } else {
+                tunnel_endpoint_len = sizeof(struct sockaddr_in6);
+                memcpy(&((struct sockaddr_in6 *)&tunnel_endpoint)->sin6_addr, &frame->addr[0], 16);
+            }
 
             rapido_tunnel_init(session, tunnel, frame->hostname, &tunnel_endpoint, tunnel_endpoint_len);
             tunnel->tunnel_id = frame->tunnel_id;
@@ -1656,8 +1665,6 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
 
                 rapido_tunnel_init(session, tunnel, frame->hostname, &tunnel_endpoint, tunnel_endpoint_len);
                 tunnel->tunnel_id = frame->tunnel_id;
-                rapido_tunnel_set_state(session, tunnel, TUNNEL_STATE_CONNECTING, "rapido_process_tunnel_control_frame");
-                tunnel->announce_flag = TUNNEL_FLAG_CONNECTING;
             }
         }
     }
