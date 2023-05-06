@@ -17,6 +17,7 @@
 #include <sys/ioctl.h>
 
 #define RUN_NETWORK_TIMEOUT 5
+#define TUN_BUFFER_SIZE_BYTES 256*1024
 
 void ctx_load_cert(ptls_context_t *ctx, const char* cert_file);
 void ctx_add_sign_cert(ptls_context_t *ctx, const char* pk_file);
@@ -92,10 +93,10 @@ void write_packets_from_tun(rapido_session_t *session, rapido_tunnel_id_t tun_id
     pfd.events = POLLIN;
 
     size_t read_len;
-    void *buffer = malloc(1500);
+    void *buffer = malloc(TUN_BUFFER_SIZE_BYTES);  // Maybe could be made variable? Needs testing.
 
     if (poll(&pfd, 1, 50)) {
-        read_len = read(tun_fd, buffer, 1500);
+        read_len = read(tun_fd, buffer, TUN_BUFFER_SIZE_BYTES);
         
         if (read_len == -1) {
             perror("In write_packets_from_tun: ");
@@ -242,7 +243,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (notification->notification_type == rapido_tunnel_has_data) {
-                    size_t len = 1500;
+                    size_t len = TUN_BUFFER_SIZE_BYTES;
                     void *buffer = rapido_read_from_tunnel(server_session, notification->tunnel_id, &len);
 
                     if (tun_interface || tap_interface) {
@@ -331,7 +332,7 @@ int main(int argc, char *argv[]) {
 
                 if (notification->notification_type == rapido_tunnel_has_data) {
                     // Received data, print to stdout.
-                    size_t len = 1500;
+                    size_t len = TUN_BUFFER_SIZE_BYTES;
                     char *buffer = rapido_read_from_tunnel(session, notification->tunnel_id, &len);
                     if (tun_interface || tap_interface) {
                         // If tunneling is enabled with --tun or --tap

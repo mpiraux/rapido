@@ -1071,7 +1071,7 @@ void rapido_tunnel_init(rapido_session_t *session, rapido_tunnel_t *tunnel, cons
     memset(tunnel, 0, sizeof(rapido_tunnel_t));
     rapido_tunnel_set_state(session, tunnel, TUNNEL_STATE_NEW, "rapido_tunnel_init");
 
-    // If there is a nexthop, open nested session and tunnel, and "patch" or "cross connect" the rx/tx buffers.
+    // If there is a nexthop, open nested session and tunnel, and "connect" the rx/tx buffers.
     if (nexthop_address) {
         assert(nexthop_host != NULL && nexthop_address != NULL && nexthop_salen > 0);
         memcpy(&tunnel->nexthop_addr, nexthop_address, sizeof(struct sockaddr_storage));
@@ -1560,8 +1560,6 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
             // Request to complete tunnel with another hop
             struct sockaddr_storage tunnel_endpoint;
             socklen_t tunnel_endpoint_len;
-            char str_port[6];
-            snprintf(str_port, 6, "%u", ntohs(frame->port));
 
             rapido_tunnel_init(session, tunnel, frame->hostname, &tunnel_endpoint, tunnel_endpoint_len);
             tunnel->tunnel_id = frame->tunnel_id;
@@ -1576,7 +1574,6 @@ int rapido_process_tunnel_control_frame(rapido_session_t *session, rapido_tunnel
         }
 
         if (tunnel->role == rapido_tunnel_source) {
-            rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
             switch (frame->flags)
             {
             case TUNNEL_FLAG_READY:
@@ -1715,6 +1712,7 @@ int rapido_decode_tunnel_data_frame(rapido_session_t *session, uint8_t *buf, siz
 
 int rapido_process_tunnel_data_frame(rapido_session_t *session, rapido_tunnel_data_frame_t *frame) {
     rapido_tunnel_t *tunnel = rapido_array_get(&session->tunnels, frame->tunnel_id);
+    assert(tunnel);
     assert(tunnel->state == TUNNEL_STATE_READY);
     assert(frame->len > 0);
     
