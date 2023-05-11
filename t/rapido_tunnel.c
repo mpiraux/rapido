@@ -120,8 +120,9 @@ int main(int argc, char *argv[]) {
     bool server_mode = 0;
     char *cert_file = NULL;
     char *key_file = NULL;
-    char *nexthop_hostname = NULL;
-    char *nexthop_port = NULL;
+    char *nexthop_hostnames[10];
+    char *nexthop_ports[10];
+    short nexthop_count = 0;
     char *tun_interface = NULL;
     char *tap_interface = NULL;
     char *qlog_filename = NULL;
@@ -143,8 +144,8 @@ int main(int argc, char *argv[]) {
                 key_file = optarg;
                 break;
             case 'j':
-                nexthop_hostname = strtok(optarg, ":");
-                nexthop_port = strtok(NULL, ":");
+                nexthop_hostnames[nexthop_count] = strtok(optarg, ":");
+                nexthop_ports[nexthop_count++] = strtok(NULL, ":");
                 break;
             case '-':
                 if (strcmp(optarg, "tun") == 0) {
@@ -304,7 +305,7 @@ int main(int argc, char *argv[]) {
 
         rapido_tunnel_id_t tun_id;
         rapido_tunnel_t *tun = NULL;
-        bool multihop_frame_sent = false;
+        short multihop_frames_sent = 0;
 
         while (!session->is_closed) {
             if (!tun) {
@@ -316,17 +317,17 @@ int main(int argc, char *argv[]) {
                 notification = rapido_queue_pop(&session->pending_notifications);
                 if (notification->notification_type == rapido_tunnel_ready) {
                     // If enabled, send the control frame to extend the tunnel to the relay specified with -j
-                    if (nexthop_hostname && nexthop_port && !multihop_frame_sent) {
-                        rapido_extend_tunnel(session, tun_id, nexthop_hostname, nexthop_port);
-                        multihop_frame_sent = true;
-                    }
-
-                    tunnel_ready = true;
-                    
-                    if (!tun_interface && !tap_interface) {
-                        // Tunnel is ready, send test message
-                        const char *payload = "Hello from client!";
-                        rapido_write_to_tunnel(session, tun_id, payload, strlen(payload));
+                    if (nexthop_count && multihop_frames_sent < nexthop_count) {
+                        rapido_extend_tunnel(session, tun_id, nexthop_hostnames[multihop_frames_sent], nexthop_ports[multihop_frames_sent]);
+                        multihop_frames_sent++;
+                    } else {
+                        tunnel_ready = true;
+                        
+                        if (!tun_interface && !tap_interface) {
+                            // Tunnel is ready, send test message
+                            const char *payload = "Hello from client!";
+                            rapido_write_to_tunnel(session, tun_id, payload, strlen(payload));
+                        }
                     }
                 }
 
