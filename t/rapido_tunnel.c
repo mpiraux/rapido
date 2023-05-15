@@ -316,7 +316,7 @@ int main(int argc, char *argv[]) {
             while (session->pending_notifications.size > 0) {
                 notification = rapido_queue_pop(&session->pending_notifications);
                 if (notification->notification_type == rapido_tunnel_ready) {
-                    // If enabled, send the control frame to extend the tunnel to the relay specified with -j
+                    // If enabled, send the control frame to extend the tunnel to the relays specified with -j
                     if (nexthop_count && multihop_frames_sent < nexthop_count) {
                         rapido_extend_tunnel(session, tun_id, nexthop_hostnames[multihop_frames_sent], nexthop_ports[multihop_frames_sent]);
                         multihop_frames_sent++;

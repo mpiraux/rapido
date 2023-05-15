@@ -1,0 +1,395 @@
+==== DIRECT CONNECTION, LOCALLY ====
+
+==== IPERF3 CLIENT DATA ====
+
+[root@carbon rapido-relay]# iperf3 -c 10.0.0.1 -t 60 -i 5
+Connecting to host 10.0.0.1, port 5201
+[  5] local 10.0.0.2 port 47080 connected to 10.0.0.1 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-5.00   sec  1.66 MBytes  2.78 Mbits/sec    0    109 KBytes
+[  5]   5.00-10.00  sec  2.42 MBytes  4.07 Mbits/sec    0    424 KBytes
+[  5]  10.00-15.00  sec  2.30 MBytes  3.85 Mbits/sec    0    829 KBytes
+[  5]  15.00-20.01  sec  0.00 Bytes  0.00 bits/sec    0   1.19 MBytes
+[  5]  20.01-25.00  sec  1.25 MBytes  2.10 Mbits/sec    0   1.66 MBytes
+[  5]  25.00-30.00  sec  1.25 MBytes  2.10 Mbits/sec    0   2.27 MBytes
+[  5]  30.00-35.01  sec  0.00 Bytes  0.00 bits/sec  443   1.66 MBytes
+[  5]  35.01-40.00  sec  0.00 Bytes  0.00 bits/sec  260   1.40 MBytes
+[  5]  40.00-45.00  sec  2.50 MBytes  4.20 Mbits/sec    0   1.69 MBytes
+[  5]  45.00-50.00  sec  1.25 MBytes  2.10 Mbits/sec  525    764 KBytes
+[  5]  50.00-55.00  sec  0.00 Bytes  0.00 bits/sec  235    783 KBytes
+[  5]  55.00-60.00  sec  2.50 MBytes  4.20 Mbits/sec    4    701 KBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-60.00  sec  15.1 MBytes  2.11 Mbits/sec  1467             sender
+[  5]   0.00-62.66  sec  13.1 MBytes  1.75 Mbits/sec                  receiver
+
+iperf Done.
+
+==== PING DATA ====
+
+[root@carbon rapido-relay]# ping 10.0.0.1 -c 30
+PING 10.0.0.1 (10.0.0.1) 56(84) bytes of data.
+64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=62.0 ms
+64 bytes from 10.0.0.1: icmp_seq=3 ttl=64 time=62.0 ms
+64 bytes from 10.0.0.1: icmp_seq=4 ttl=64 time=61.6 ms
+64 bytes from 10.0.0.1: icmp_seq=5 ttl=64 time=66.1 ms
+64 bytes from 10.0.0.1: icmp_seq=6 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=7 ttl=64 time=61.6 ms
+64 bytes from 10.0.0.1: icmp_seq=8 ttl=64 time=61.7 ms
+64 bytes from 10.0.0.1: icmp_seq=9 ttl=64 time=61.7 ms
+64 bytes from 10.0.0.1: icmp_seq=10 ttl=64 time=62.5 ms
+64 bytes from 10.0.0.1: icmp_seq=11 ttl=64 time=62.1 ms
+64 bytes from 10.0.0.1: icmp_seq=12 ttl=64 time=61.8 ms
+64 bytes from 10.0.0.1: icmp_seq=13 ttl=64 time=61.4 ms
+64 bytes from 10.0.0.1: icmp_seq=14 ttl=64 time=62.4 ms
+64 bytes from 10.0.0.1: icmp_seq=15 ttl=64 time=62.8 ms
+64 bytes from 10.0.0.1: icmp_seq=16 ttl=64 time=61.5 ms
+64 bytes from 10.0.0.1: icmp_seq=17 ttl=64 time=61.5 ms
+64 bytes from 10.0.0.1: icmp_seq=18 ttl=64 time=122 ms
+64 bytes from 10.0.0.1: icmp_seq=19 ttl=64 time=65.6 ms
+64 bytes from 10.0.0.1: icmp_seq=20 ttl=64 time=61.9 ms
+64 bytes from 10.0.0.1: icmp_seq=21 ttl=64 time=61.6 ms
+64 bytes from 10.0.0.1: icmp_seq=22 ttl=64 time=64.4 ms
+64 bytes from 10.0.0.1: icmp_seq=23 ttl=64 time=65.5 ms
+64 bytes from 10.0.0.1: icmp_seq=24 ttl=64 time=61.6 ms
+64 bytes from 10.0.0.1: icmp_seq=25 ttl=64 time=66.8 ms
+64 bytes from 10.0.0.1: icmp_seq=26 ttl=64 time=64.7 ms
+64 bytes from 10.0.0.1: icmp_seq=27 ttl=64 time=65.2 ms
+64 bytes from 10.0.0.1: icmp_seq=28 ttl=64 time=61.5 ms
+64 bytes from 10.0.0.1: icmp_seq=29 ttl=64 time=61.4 ms
+64 bytes from 10.0.0.1: icmp_seq=30 ttl=64 time=64.3 ms
+
+--- 10.0.0.1 ping statistics ---
+30 packets transmitted, 30 received, 0% packet loss, time 29048ms
+rtt min/avg/max/mdev = 61.354/68.457/121.925/16.896 ms
+
+==== Local tunnel with one hop ====
+
+==== IPERF3 CLIENT DATA ====
+
+[root@carbon rapido-relay]# iperf3 -c 10.0.0.1 -t 60 -i 5
+Connecting to host 10.0.0.1, port 5201
+[  5] local 10.0.0.2 port 46372 connected to 10.0.0.1 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-5.00   sec  1.58 MBytes  2.65 Mbits/sec    0    106 KBytes
+[  5]   5.00-10.00  sec  2.49 MBytes  4.17 Mbits/sec    0    403 KBytes
+[  5]  10.00-15.00  sec  2.18 MBytes  3.66 Mbits/sec    0    895 KBytes
+[  5]  15.00-20.01  sec  0.00 Bytes  0.00 bits/sec    5   1.06 MBytes
+[  5]  20.01-25.00  sec  1.25 MBytes  2.10 Mbits/sec  188    831 KBytes
+[  5]  25.00-30.00  sec  2.50 MBytes  4.19 Mbits/sec    0   1021 KBytes
+[  5]  30.00-35.00  sec  0.00 Bytes  0.00 bits/sec  257    740 KBytes
+[  5]  35.00-40.00  sec  2.50 MBytes  4.20 Mbits/sec    3    581 KBytes
+[  5]  40.00-45.00  sec  0.00 Bytes  0.00 bits/sec    0    590 KBytes
+[  5]  45.00-50.00  sec  1.25 MBytes  2.10 Mbits/sec    0    629 KBytes
+[  5]  50.00-55.00  sec  1.25 MBytes  2.10 Mbits/sec    0    776 KBytes
+[  5]  55.00-60.00  sec  0.00 Bytes  0.00 bits/sec  138    626 KBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-60.00  sec  15.0 MBytes  2.10 Mbits/sec  591             sender
+[  5]   0.00-62.73  sec  13.7 MBytes  1.84 Mbits/sec                  receiver
+
+iperf Done.
+
+==== PING DATA ====
+
+[root@carbon rapido-relay]# ping 10.0.0.1 -c 30
+PING 10.0.0.1 (10.0.0.1) 56(84) bytes of data.
+64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=61.5 ms
+64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=3 ttl=64 time=123 ms
+64 bytes from 10.0.0.1: icmp_seq=4 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=5 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=6 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=7 ttl=64 time=122 ms
+64 bytes from 10.0.0.1: icmp_seq=8 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=9 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=10 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=11 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=12 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=13 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=14 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=15 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=16 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=17 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=18 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=19 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=20 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=21 ttl=64 time=172 ms
+64 bytes from 10.0.0.1: icmp_seq=22 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=23 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=24 ttl=64 time=121 ms
+64 bytes from 10.0.0.1: icmp_seq=25 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=26 ttl=64 time=122 ms
+64 bytes from 10.0.0.1: icmp_seq=27 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=28 ttl=64 time=61.6 ms
+64 bytes from 10.0.0.1: icmp_seq=29 ttl=64 time=119 ms
+64 bytes from 10.0.0.1: icmp_seq=30 ttl=64 time=118 ms
+
+--- 10.0.0.1 ping statistics ---
+30 packets transmitted, 30 received, 0% packet loss, time 29043ms
+rtt min/avg/max/mdev = 61.461/121.796/173.140/24.559 ms
+
+==== Local tunnel with two hops ====
+
+==== IPERF3 CLIENT DATA ====
+
+[root@carbon rapido-relay]# iperf3 -c 10.0.0.1 -t 60 -i 5
+Connecting to host 10.0.0.1, port 5201
+[  5] local 10.0.0.2 port 44750 connected to 10.0.0.1 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-5.00   sec  1.47 MBytes  2.46 Mbits/sec    0    123 KBytes
+[  5]   5.00-10.00  sec  2.42 MBytes  4.07 Mbits/sec    0    417 KBytes
+[  5]  10.00-15.00  sec  2.23 MBytes  3.74 Mbits/sec    0    856 KBytes
+[  5]  15.00-20.00  sec  1.25 MBytes  2.10 Mbits/sec    0   1.40 MBytes
+[  5]  20.00-25.01  sec  0.00 Bytes  0.00 bits/sec  328   1.17 MBytes
+[  5]  25.01-30.00  sec  0.00 Bytes  0.00 bits/sec  382    706 KBytes
+[  5]  30.00-35.00  sec  2.50 MBytes  4.19 Mbits/sec    4   1.21 MBytes
+[  5]  35.00-40.01  sec  1.25 MBytes  2.10 Mbits/sec  426    717 KBytes
+[  5]  40.01-45.00  sec  1.25 MBytes  2.10 Mbits/sec   13    636 KBytes
+[  5]  45.00-50.00  sec  1.25 MBytes  2.10 Mbits/sec    2    469 KBytes
+[  5]  50.00-55.01  sec  1.25 MBytes  2.10 Mbits/sec    0    532 KBytes
+[  5]  55.01-60.00  sec  1.25 MBytes  2.10 Mbits/sec    0    594 KBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-60.00  sec  16.1 MBytes  2.25 Mbits/sec  1155             sender
+[  5]   0.00-62.47  sec  14.0 MBytes  1.88 Mbits/sec                  receiver
+
+iperf Done.
+
+==== PING DATA ====
+
+[root@carbon rapido-relay]# ping 10.0.0.1 -c 30
+PING 10.0.0.1 (10.0.0.1) 56(84) bytes of data.
+64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=172 ms
+64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=127 ms
+64 bytes from 10.0.0.1: icmp_seq=3 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=4 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=5 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=6 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=7 ttl=64 time=123 ms
+64 bytes from 10.0.0.1: icmp_seq=8 ttl=64 time=172 ms
+64 bytes from 10.0.0.1: icmp_seq=9 ttl=64 time=123 ms
+64 bytes from 10.0.0.1: icmp_seq=10 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=11 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=12 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=13 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=14 ttl=64 time=172 ms
+64 bytes from 10.0.0.1: icmp_seq=15 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=16 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=17 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=18 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=19 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=20 ttl=64 time=178 ms
+64 bytes from 10.0.0.1: icmp_seq=21 ttl=64 time=121 ms
+64 bytes from 10.0.0.1: icmp_seq=22 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=23 ttl=64 time=172 ms
+64 bytes from 10.0.0.1: icmp_seq=24 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=25 ttl=64 time=122 ms
+64 bytes from 10.0.0.1: icmp_seq=26 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=27 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=28 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=29 ttl=64 time=177 ms
+64 bytes from 10.0.0.1: icmp_seq=30 ttl=64 time=120 ms
+
+--- 10.0.0.1 ping statistics ---
+30 packets transmitted, 30 received, 0% packet loss, time 29041ms
+rtt min/avg/max/mdev = 116.584/139.074/177.649/26.255 ms
+
+==== Remote tunnel, direct connection ====
+
+==== IPERF3 CLIENT DATA ====
+
+[root@carbon luxim]# iperf3 -c 10.0.0.1 -t 60 -i 5
+Connecting to host 10.0.0.1, port 5201
+[  5] local 10.0.0.2 port 60514 connected to 10.0.0.1 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-5.00   sec  1.49 MBytes  2.50 Mbits/sec    0    134 KBytes
+[  5]   5.00-10.00  sec  2.42 MBytes  4.07 Mbits/sec    0    397 KBytes
+[  5]  10.00-15.00  sec  2.21 MBytes  3.71 Mbits/sec    0    843 KBytes
+[  5]  15.00-20.00  sec  0.00 Bytes  0.00 bits/sec    0   1.22 MBytes
+[  5]  20.00-25.00  sec  1.25 MBytes  2.10 Mbits/sec    0   1.62 MBytes
+[  5]  25.00-30.00  sec  1.25 MBytes  2.10 Mbits/sec    0   2.23 MBytes
+[  5]  30.00-35.00  sec  1.16 MBytes  1.95 Mbits/sec    0   2.84 MBytes
+[  5]  35.00-40.01  sec  0.00 Bytes  0.00 bits/sec  373   2.04 MBytes
+[  5]  40.01-45.00  sec  1.21 MBytes  2.04 Mbits/sec  286   1.80 MBytes
+[  5]  45.00-50.00  sec  1.25 MBytes  2.10 Mbits/sec    0   2.06 MBytes
+[  5]  50.00-55.00  sec  1.25 MBytes  2.10 Mbits/sec  221   1.76 MBytes
+[  5]  55.00-60.01  sec  0.00 Bytes  0.00 bits/sec   21   1.56 MBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-60.01  sec  13.5 MBytes  1.89 Mbits/sec  901             sender
+[  5]   0.00-60.24  sec  13.5 MBytes  1.88 Mbits/sec                  receiver
+
+iperf Done.
+
+==== PING DATA ====
+
+[root@carbon luxim]# ping 10.0.0.1 -c 30
+PING 10.0.0.1 (10.0.0.1) 56(84) bytes of data.
+64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=3 ttl=64 time=182 ms
+64 bytes from 10.0.0.1: icmp_seq=4 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=5 ttl=64 time=228 ms
+64 bytes from 10.0.0.1: icmp_seq=6 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=7 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=8 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=9 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=10 ttl=64 time=124 ms
+64 bytes from 10.0.0.1: icmp_seq=11 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=12 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=13 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=14 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=15 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=16 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=17 ttl=64 time=124 ms
+64 bytes from 10.0.0.1: icmp_seq=18 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=19 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=20 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=21 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=22 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=23 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=24 ttl=64 time=229 ms
+64 bytes from 10.0.0.1: icmp_seq=25 ttl=64 time=176 ms
+64 bytes from 10.0.0.1: icmp_seq=26 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=27 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=28 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=29 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=30 ttl=64 time=173 ms
+
+--- 10.0.0.1 ping statistics ---
+30 packets transmitted, 30 received, 0% packet loss, time 29041ms
+rtt min/avg/max/mdev = 117.086/155.298/228.597/32.937 ms
+
+==== Remote tunnel, one hop ====
+
+==== IPERF3 DATA ====
+
+[root@carbon rapido-relay]# iperf3 -c 10.0.0.1 -t 60 -i 5
+Connecting to host 10.0.0.1, port 5201
+[  5] local 10.0.0.2 port 50304 connected to 10.0.0.1 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-5.00   sec  1.51 MBytes  2.52 Mbits/sec    0    143 KBytes
+[  5]   5.00-10.00  sec  2.42 MBytes  4.07 Mbits/sec    0    365 KBytes
+[  5]  10.00-15.00  sec  2.20 MBytes  3.68 Mbits/sec    0    820 KBytes
+[  5]  15.00-20.01  sec  0.00 Bytes  0.00 bits/sec    0   1.21 MBytes
+[  5]  20.01-25.00  sec  1.25 MBytes  2.10 Mbits/sec    0   1.69 MBytes
+[  5]  25.00-30.00  sec  1.25 MBytes  2.10 Mbits/sec    0   2.34 MBytes
+[  5]  30.00-35.00  sec  1.24 MBytes  2.08 Mbits/sec  639   1.34 MBytes
+[  5]  35.00-40.00  sec  1.14 MBytes  1.91 Mbits/sec   36   1.44 MBytes
+[  5]  40.00-45.00  sec  1.25 MBytes  2.10 Mbits/sec  333    560 KBytes
+[  5]  45.00-50.00  sec  2.50 MBytes  4.19 Mbits/sec  129   1.31 MBytes
+[  5]  50.00-55.00  sec  0.00 Bytes  0.00 bits/sec  454    728 KBytes
+[  5]  55.00-60.00  sec  2.50 MBytes  4.20 Mbits/sec   24    710 KBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-60.00  sec  17.2 MBytes  2.41 Mbits/sec  1615             sender
+[  5]   0.00-63.05  sec  14.0 MBytes  1.86 Mbits/sec                  receiver
+
+iperf Done.
+
+==== PING DATA ====
+
+[root@carbon rapido-relay]# ping 10.0.0.1 -c 30
+PING 10.0.0.1 (10.0.0.1) 56(84) bytes of data.
+64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=3 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=4 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=5 ttl=64 time=175 ms
+64 bytes from 10.0.0.1: icmp_seq=6 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=7 ttl=64 time=174 ms
+64 bytes from 10.0.0.1: icmp_seq=8 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=9 ttl=64 time=175 ms
+64 bytes from 10.0.0.1: icmp_seq=10 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=11 ttl=64 time=174 ms
+64 bytes from 10.0.0.1: icmp_seq=12 ttl=64 time=174 ms
+64 bytes from 10.0.0.1: icmp_seq=13 ttl=64 time=175 ms
+64 bytes from 10.0.0.1: icmp_seq=14 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=15 ttl=64 time=341 ms
+64 bytes from 10.0.0.1: icmp_seq=16 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=17 ttl=64 time=174 ms
+64 bytes from 10.0.0.1: icmp_seq=18 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=19 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=20 ttl=64 time=175 ms
+64 bytes from 10.0.0.1: icmp_seq=21 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=22 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=23 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=24 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=25 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=26 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=27 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=28 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=29 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=30 ttl=64 time=229 ms
+
+--- 10.0.0.1 ping statistics ---
+30 packets transmitted, 30 received, 0% packet loss, time 29041ms
+rtt min/avg/max/mdev = 117.000/166.072/341.058/42.619 ms
+
+==== Remote tunnel, 2 hops ====
+
+==== IPERF3 DATA ====
+
+[root@carbon rapido-relay]# iperf3 -c 10.0.0.1 -t 60 -i 5
+Connecting to host 10.0.0.1, port 5201
+[  5] local 10.0.0.2 port 40040 connected to 10.0.0.1 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-5.00   sec  1.49 MBytes  2.50 Mbits/sec    0    139 KBytes
+[  5]   5.00-10.00  sec  2.42 MBytes  4.07 Mbits/sec    0    383 KBytes
+[  5]  10.00-15.00  sec  2.21 MBytes  3.71 Mbits/sec    0    802 KBytes
+[  5]  15.00-20.00  sec  0.00 Bytes  0.00 bits/sec    0   1.16 MBytes
+[  5]  20.00-25.00  sec  1.25 MBytes  2.10 Mbits/sec    0   1.60 MBytes
+[  5]  25.00-30.00  sec  1.25 MBytes  2.10 Mbits/sec    0   2.24 MBytes
+[  5]  30.00-35.00  sec  1.17 MBytes  1.97 Mbits/sec   88   2.62 MBytes
+[  5]  35.00-40.00  sec  0.00 Bytes  0.00 bits/sec  855   1.52 MBytes
+[  5]  40.00-45.00  sec  2.45 MBytes  4.11 Mbits/sec  112   2.01 MBytes
+[  5]  45.00-50.00  sec  1.25 MBytes  2.10 Mbits/sec  838    940 KBytes
+[  5]  50.00-55.00  sec  1.25 MBytes  2.10 Mbits/sec  165    973 KBytes
+[  5]  55.00-60.00  sec  1.25 MBytes  2.10 Mbits/sec  204    747 KBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-60.00  sec  16.0 MBytes  2.24 Mbits/sec  2262             sender
+[  5]   0.00-63.08  sec  13.3 MBytes  1.76 Mbits/sec                  receiver
+
+iperf Done.
+
+==== PING DATA ====
+
+[root@carbon rapido-relay]# ping 10.0.0.1 -c 30
+PING 10.0.0.1 (10.0.0.1) 56(84) bytes of data.
+64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=117 ms
+64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=3 ttl=64 time=229 ms
+64 bytes from 10.0.0.1: icmp_seq=4 ttl=64 time=229 ms
+64 bytes from 10.0.0.1: icmp_seq=5 ttl=64 time=340 ms
+64 bytes from 10.0.0.1: icmp_seq=6 ttl=64 time=284 ms
+64 bytes from 10.0.0.1: icmp_seq=7 ttl=64 time=229 ms
+64 bytes from 10.0.0.1: icmp_seq=8 ttl=64 time=395 ms
+64 bytes from 10.0.0.1: icmp_seq=9 ttl=64 time=175 ms
+64 bytes from 10.0.0.1: icmp_seq=10 ttl=64 time=123 ms
+64 bytes from 10.0.0.1: icmp_seq=11 ttl=64 time=229 ms
+64 bytes from 10.0.0.1: icmp_seq=12 ttl=64 time=229 ms
+64 bytes from 10.0.0.1: icmp_seq=13 ttl=64 time=286 ms
+64 bytes from 10.0.0.1: icmp_seq=14 ttl=64 time=176 ms
+64 bytes from 10.0.0.1: icmp_seq=15 ttl=64 time=284 ms
+64 bytes from 10.0.0.1: icmp_seq=16 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=17 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=18 ttl=64 time=231 ms
+64 bytes from 10.0.0.1: icmp_seq=19 ttl=64 time=285 ms
+64 bytes from 10.0.0.1: icmp_seq=20 ttl=64 time=229 ms
+64 bytes from 10.0.0.1: icmp_seq=21 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=22 ttl=64 time=229 ms
+64 bytes from 10.0.0.1: icmp_seq=23 ttl=64 time=230 ms
+64 bytes from 10.0.0.1: icmp_seq=24 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=25 ttl=64 time=174 ms
+64 bytes from 10.0.0.1: icmp_seq=26 ttl=64 time=118 ms
+64 bytes from 10.0.0.1: icmp_seq=27 ttl=64 time=173 ms
+64 bytes from 10.0.0.1: icmp_seq=28 ttl=64 time=176 ms
+64 bytes from 10.0.0.1: icmp_seq=29 ttl=64 time=229 ms
+64 bytes from 10.0.0.1: icmp_seq=30 ttl=64 time=231 ms
+
+--- 10.0.0.1 ping statistics ---
+30 packets transmitted, 30 received, 0% packet loss, time 29043ms
+rtt min/avg/max/mdev = 117.033/214.562/395.310/63.805 ms
