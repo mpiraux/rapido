@@ -1448,7 +1448,7 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
         if (connection->non_ack_eliciting_count >= DEFAULT_DELAYED_ACK_COUNT) {
             connection->require_ack = true;
             connection->non_ack_eliciting_count = 0;
-        } else if (connection->last_receive_time > 0 && connection->last_receive_time + DEFAULT_DELAYED_ACK_TIME < current_time) {
+        } else if (connection->non_ack_eliciting_count && connection->last_receive_time > 0 && connection->last_receive_time + DEFAULT_DELAYED_ACK_TIME < current_time) {
             connection->require_ack = true;
             connection->last_receive_time = 0;
         }
