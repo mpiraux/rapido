@@ -1938,7 +1938,6 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
         *len = min(recvd - processed, record_cleartext_len + 22);
         int ret = ptls_receive(session->tls, &plaintext, buffer + processed, len);
         assert(plaintext.is_allocated == 0);
-        processed += *len;
         if (ret && PTLS_ERROR_TO_ALERT(ret) == PTLS_ALERT_CLOSE_NOTIFY) {
             session->is_closed = true;
             rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
@@ -1948,6 +1947,7 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
             printf("ret: %d\n", ret);
             todo(ret != 0);
         }
+        processed += *len;
         if (plaintext.off > 0) {
             QLOG(session, "transport", "receive_record", "",
                     "{\"connection_id\": \"%u\", \"record_sequence\": \"%lu\", \"ciphertext_len\": \"%zu\"}", connection_id,
@@ -2152,7 +2152,7 @@ void rapido_connection_get_info(rapido_session_t * session, rapido_connection_id
     info->smoothed_rtt = sock_info.tcpi_rtt;
     info->congestion_window = sock_info.tcpi_snd_cwnd * sock_info.tcpi_snd_mss;
     info->bytes_queued_for_sending = sock_info.tcpi_notsent_bytes;
-    QLOG(session, "connection", "connection_info", "", "{\"smoothed_rtt\": \"%lu\", \"congestion_window\": \"%lu\", \"bytes_queued_for_sending\": \"%lu\"}", info->smoothed_rtt, info->congestion_window, info->bytes_queued_for_sending);
+    QLOG(session, "connection", "connection_info", "", "{\"connection_id\": %d, \"smoothed_rtt\": \"%lu\", \"congestion_window\": \"%lu\", \"bytes_queued_for_sending\": \"%lu\"}", connection_id, info->smoothed_rtt, info->congestion_window, info->bytes_queued_for_sending);
 }
 
 
