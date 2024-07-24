@@ -17,12 +17,16 @@
 #define LOG if (1)
 #define QLOG(session, ev_type, cat, trigger, data_fmt, ...)                                                                        \
     do {                                                                                                                           \
+                                                                                                                                   \
         if (!(session)->qlog.out)                                                                                                  \
             break;                                                                                                                 \
+        fprintf((session)->qlog.out, "\033[%lldm", 31 + ((long long) session) % 6);                                                \
         fprintf((session)->qlog.out, "[%lu, \"%s:%s:%s\", \"%s\", ", get_usec_time() - (session)->qlog.reference_time,             \
                 (session)->is_server ? "server" : "client", ev_type, cat, trigger);                                                \
         fprintf((session)->qlog.out, data_fmt ? data_fmt : "{}", ##__VA_ARGS__);                                                   \
-        fprintf((session)->qlog.out, "],\n");                                                                                      \
+        fprintf((session)->qlog.out, "]\n");                                                                                       \
+        fprintf((session)->qlog.out, "\033[0m");                                                                                   \
+        fflush((session)->qlog.out);                                                                                               \
     } while (0)
 #else
 #define QLOG(session, ev_type, cat, trigger, data_fmt, ...)
