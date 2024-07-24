@@ -97,6 +97,16 @@ ssize_t seek_next_char(char *data, size_t len, char c) {
     return -1;
 }
 
+static void tohex(uint8_t *in, size_t len, char *out) {
+    uint8_t *max_in = in + len;
+    const char *hex = "0123456789abcdef";
+    for (; in < max_in; out += 2, in++) {
+        out[0] = hex[(*in >> 4) & 0xf];
+        out[1] = hex[*in & 0xf];
+    }
+    *out = 0;
+}
+
 struct st_http_server_context {
     char *method;
     char *path;

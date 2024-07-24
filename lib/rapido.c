@@ -85,7 +85,7 @@
         }                                                                                                                          \
     } while (0);
 
-void tohex(uint8_t *in, size_t len, char *out) {
+static void tohex(uint8_t *in, size_t len, char *out) {
     uint8_t *max_in = in + len;
     const char *hex = "0123456789abcdef";
     for (; in < max_in; out += 2, in++) {
@@ -1527,7 +1527,7 @@ int rapido_connection_wants_to_send(rapido_session_t *session, rapido_connection
 
     LOG {
         QLOG(session, "connection", "rapido_connection_wants_to_send", "", "{\"connection_id\": \"%d\", \"reason\": \"%s\", \"wants_to_send\": \"%d\", \"is_blocked\": \"%d\"}",
-             connection->connection_id, reason, wants_to_send, is_blocked == NULL ? NULL : *is_blocked);
+             connection->connection_id, reason, wants_to_send, is_blocked == NULL ? -1 :  (int) *is_blocked);
     };
 
     return wants_to_send;
@@ -2331,7 +2331,7 @@ int rapido_run_server_network(rapido_server_t *server, int timeout) {
 
 int rapido_retransmit_connection(rapido_session_t *session, rapido_connection_id_t connection_id, rapido_set_t connections) {
     QLOG(session, "api", "rapido_retransmit_connection", "", "{\"source_connection_id\": \"%d\", \"connections\": \"%lu\"}",
-         connection_id, connections);
+         connection_id, connections.bs);
     rapido_connection_t *source_connection = rapido_array_get(&session->connections, connection_id);
     assert(source_connection != NULL);
     rapido_set_iter(&connections, i, rapido_connection_id_t connection_id, {
