@@ -14,6 +14,8 @@
 #define RUN_NETWORK_TIMEOUT_DEFAULT 500
 #define RUN_NETWORK_TIMEOUT_SHORT 20
 
+#define DEFAULT_TCPLS_SESSION_ID_AMOUNT 4
+
 #define SESSION(server, index) ((rapido_session_t *)rapido_array_get(&(server)->sessions, (index)))
 
 uint8_t random_data[16384] = {42};
@@ -119,7 +121,11 @@ void test_simple_stream_transfer() {
     ok(rapido_attach_stream(server, server_stream_id, s_cid) == 0);
     rapido_run_network(server, RUN_NETWORK_TIMEOUT_DEFAULT);
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
-    ok(client->pending_notifications.size == 3);
+    ok(client->pending_notifications.size == 3 + (DEFAULT_TCPLS_SESSION_ID_AMOUNT - 1));
+    for (int i = 1; i < DEFAULT_TCPLS_SESSION_ID_AMOUNT; i++) {
+        notification = rapido_queue_pop(&client->pending_notifications);
+        ok(notification->notification_type == rapido_new_connection_token);
+    }
     notification = rapido_queue_pop(&client->pending_notifications);
     ok(notification->notification_type == rapido_new_stream);
     ok(notification->stream_id == server_stream_id);
@@ -484,7 +490,11 @@ void test_failover() {
     rapido_run_network(server, RUN_NETWORK_TIMEOUT_DEFAULT);
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
 
-    ok(client->pending_notifications.size == 9);
+    ok(client->pending_notifications.size == 9 + (DEFAULT_TCPLS_SESSION_ID_AMOUNT - 1));
+    for (int i = 1; i < DEFAULT_TCPLS_SESSION_ID_AMOUNT; i++) {
+        notification = rapido_queue_pop(&client->pending_notifications);
+        ok(notification->notification_type == rapido_new_connection_token);
+    }
     notification = rapido_queue_pop(&client->pending_notifications);
     ok(notification->notification_type == rapido_new_stream);
     ok(notification->stream_id == stream_id);
@@ -658,7 +668,11 @@ void test_multiple_server_addresses() {
     ok(notification->notification_type == rapido_new_remote_address);
     ok(ptls_handshake_is_complete(server->tls));
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
-    ok(client->pending_notifications.size == 1);
+    ok(client->pending_notifications.size == 1 + (DEFAULT_TCPLS_SESSION_ID_AMOUNT - 1));
+    for (int i = 1; i < DEFAULT_TCPLS_SESSION_ID_AMOUNT; i++) {
+        notification = rapido_queue_pop(&client->pending_notifications);
+        ok(notification->notification_type == rapido_new_connection_token);
+    }
     notification = rapido_queue_pop(&client->pending_notifications);
     ok(notification->notification_type == rapido_new_remote_address);
     rapido_address_id_t c_aid_c = notification->address_id;
@@ -764,7 +778,11 @@ void test_server_new_session() {
         ok(rapido_attach_stream(server_session, server_stream_id, s_cid) == 0);
         rapido_run_network(server_session, RUN_NETWORK_TIMEOUT_DEFAULT);
         rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
-        ok(client->pending_notifications.size == 3);
+        ok(client->pending_notifications.size == 3 + (DEFAULT_TCPLS_SESSION_ID_AMOUNT - 1));
+        for (int i = 1; i < DEFAULT_TCPLS_SESSION_ID_AMOUNT; i++) {
+            notification = rapido_queue_pop(&client->pending_notifications);
+            ok(notification->notification_type == rapido_new_connection_token);
+        }
         notification = rapido_queue_pop(&client->pending_notifications);
         ok(notification->notification_type == rapido_new_stream);
         ok(notification->stream_id == server_stream_id);
@@ -803,7 +821,11 @@ void test_server_new_session() {
         ok(rapido_attach_stream(server_session2, server_stream_id, s_cid) == 0);
         rapido_run_network(server_session2, RUN_NETWORK_TIMEOUT_DEFAULT);
         rapido_run_network(client2, RUN_NETWORK_TIMEOUT_DEFAULT);
-        ok(client2->pending_notifications.size == 3);
+        ok(client2->pending_notifications.size == 3 + (DEFAULT_TCPLS_SESSION_ID_AMOUNT - 1));
+            for (int i = 1; i < DEFAULT_TCPLS_SESSION_ID_AMOUNT; i++) {
+            notification = rapido_queue_pop(&client2->pending_notifications);
+            ok(notification->notification_type == rapido_new_connection_token);
+        }
         notification = rapido_queue_pop(&client2->pending_notifications);
         ok(notification->notification_type == rapido_new_stream);
         ok(notification->stream_id == server_stream_id);
@@ -874,12 +896,20 @@ void test_server_addresses() {
     rapido_run_network(SESSION(server, server_session2_index), RUN_NETWORK_TIMEOUT_DEFAULT);
 
     rapido_run_network(client, RUN_NETWORK_TIMEOUT_DEFAULT);
-    ok(client->pending_notifications.size == 1);
+    ok(client->pending_notifications.size == 1 + (DEFAULT_TCPLS_SESSION_ID_AMOUNT - 1));
+    for (int i = 1; i < DEFAULT_TCPLS_SESSION_ID_AMOUNT; i++) {
+        notification = rapido_queue_pop(&client->pending_notifications);
+        ok(notification->notification_type == rapido_new_connection_token);
+    }
     notification = rapido_queue_pop(&client->pending_notifications);
     ok(notification->notification_type == rapido_new_remote_address);
     rapido_address_id_t c_aid_d = notification->address_id;
     rapido_run_network(client2, RUN_NETWORK_TIMEOUT_DEFAULT);
-    ok(client2->pending_notifications.size == 1);
+    ok(client2->pending_notifications.size == 1 + (DEFAULT_TCPLS_SESSION_ID_AMOUNT - 1));
+    for (int i = 1; i < DEFAULT_TCPLS_SESSION_ID_AMOUNT; i++) {
+        notification = rapido_queue_pop(&client2->pending_notifications);
+        ok(notification->notification_type == rapido_new_connection_token);
+    }
     notification = rapido_queue_pop(&client2->pending_notifications);
     ok(notification->notification_type == rapido_new_remote_address);
     rapido_address_id_t c2_aid_d = notification->address_id;

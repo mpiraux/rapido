@@ -1246,6 +1246,8 @@ int rapido_decode_new_session_id_frame(rapido_session_t *session, uint8_t *buf, 
 int rapido_process_new_session_id_frame(rapido_session_t *session, rapido_new_session_id_frame_t *frame) {
     assert(!session->is_server);
     memcpy(rapido_array_add(&session->tls_session_ids, frame->sequence), frame->tls_session_id, TLS_SESSION_ID_LEN);
+    rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
+    notification->notification_type = rapido_new_connection_token;
     return 0;
 }
 

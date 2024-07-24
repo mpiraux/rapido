@@ -298,6 +298,7 @@ typedef struct {
         rapido_stream_has_data,
         rapido_stream_data_was_written,
         rapido_stream_closed,
+        rapido_new_connection_token,
         rapido_new_remote_address,
         rapido_session_closed,
     } notification_type;
