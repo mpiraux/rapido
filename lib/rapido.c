@@ -318,13 +318,13 @@ bool rapido_set_has(rapido_set_t *set, uint32_t value) {
 
 /** Adds the given value to the set when it can contains, otherwise fails. */
 void rapido_set_add(rapido_set_t *set, uint32_t value) {
-    assert(set->start <= value);
     if (value - set->start < SET_LEN || set->bs == 0) {
         if (set->bs == 0) {
             set->start = value;
         }
         SET_ADD(set->bs, value - set->start);
     } else {
+        assert(set->start <= value);
         for (int i = 0; i < SET_LEN; i++) {
             if (SET_HAS(set->bs, i)) {
                 assert(value < set->start + i + SET_LEN);
