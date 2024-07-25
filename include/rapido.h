@@ -310,6 +310,8 @@ typedef struct {
         rapido_address_id_t address_id;
         void *app_ctx;
     };
+
+    uint64_t timestamp;
 } rapido_application_notification_t;
 
 /** Creates a new rapido server. */

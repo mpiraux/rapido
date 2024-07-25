@@ -1175,7 +1175,7 @@ int rapido_decode_stream_frame(rapido_session_t *session, uint8_t *buf, size_t *
     return 0;
 }
 
-int rapido_process_stream_frame(rapido_session_t *session, rapido_stream_frame_t *frame) {
+int rapido_process_stream_frame(rapido_session_t *session, rapido_stream_frame_t *frame, uint64_t current_time) {
     rapido_stream_t *stream = rapido_array_get(&session->streams, frame->stream_id);
     if (stream == NULL) {
         assert(CLIENT_STREAM(frame->stream_id) == session->is_server);
@@ -1185,6 +1185,7 @@ int rapido_process_stream_frame(rapido_session_t *session, rapido_stream_frame_t
         rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
         notification->notification_type = rapido_new_stream;
         notification->stream_id = frame->stream_id;
+        notification->timestamp = current_time;
     }
     assert(!stream->fin_received || (frame->offset + frame->len <= stream->read_fin));
     assert(!frame->fin || !stream->fin_received);
@@ -1194,6 +1195,7 @@ int rapido_process_stream_frame(rapido_session_t *session, rapido_stream_frame_t
         rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
         notification->notification_type = rapido_stream_has_data;
         notification->stream_id = frame->stream_id;
+        notification->timestamp = current_time;
     }
     if (frame->fin) {
         stream->fin_received = frame->fin;
@@ -1201,6 +1203,7 @@ int rapido_process_stream_frame(rapido_session_t *session, rapido_stream_frame_t
         rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
         notification->notification_type = rapido_stream_closed;
         notification->stream_id = frame->stream_id;
+        notification->timestamp = current_time;
     }
     return 0;
 }
@@ -1246,11 +1249,12 @@ int rapido_decode_new_session_id_frame(rapido_session_t *session, uint8_t *buf, 
     return 0;
 }
 
-int rapido_process_new_session_id_frame(rapido_session_t *session, rapido_new_session_id_frame_t *frame) {
+int rapido_process_new_session_id_frame(rapido_session_t *session, rapido_new_session_id_frame_t *frame, uint64_t current_time) {
     assert(!session->is_server);
     memcpy(rapido_array_add(&session->tls_session_ids, frame->sequence), frame->tls_session_id, TLS_SESSION_ID_LEN);
     rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
     notification->notification_type = rapido_new_connection_token;
+    notification->timestamp = current_time;
     return 0;
 }
 
@@ -1292,9 +1296,10 @@ int rapido_decode_ack_frame(rapido_session_t *session, uint8_t *buf, size_t *len
     return 0;
 }
 
-int rapido_process_ack_frame(rapido_session_t *session, rapido_ack_frame_t *frame) {
+int rapido_process_ack_frame(rapido_session_t *session, rapido_ack_frame_t *frame, uint64_t current_time) {
     rapido_connection_t *connection = rapido_array_get(&session->connections, frame->connection_id);
     assert(connection != NULL);
+    rapido_unused(current_time);
     rapido_record_metadata_t *record;
     while ((record = rapido_queue_peek(&connection->sent_records))) {
         if (record->tls_record_sequence <= frame->last_record_acknowledged) {
@@ -1362,7 +1367,7 @@ int rapido_decode_new_address_frame(rapido_session_t *session, uint8_t *buf, siz
     return 0;
 }
 
-int rapido_process_new_address_frame(rapido_session_t *session, rapido_new_address_frame_t *frame) {
+int rapido_process_new_address_frame(rapido_session_t *session, rapido_new_address_frame_t *frame, uint64_t current_time) {
     if (rapido_array_get(&session->remote_addresses, frame->address_id) != NULL) {
         // TODO: Deal with NAT
         return 0;
@@ -1385,6 +1390,7 @@ int rapido_process_new_address_frame(rapido_session_t *session, rapido_new_addre
         rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
         notification->notification_type = rapido_new_remote_address;
         notification->address_id = frame->address_id;
+        notification->timestamp = current_time;
     }
     return 0;
 }
@@ -1417,13 +1423,14 @@ int rapido_decode_connection_reset_frame(rapido_session_t *session, uint8_t *buf
     return 0;
 }
 
-int rapido_process_connection_reset_frame(rapido_session_t *session, rapido_connection_reset_frame_t *frame) {
+int rapido_process_connection_reset_frame(rapido_session_t *session, rapido_connection_reset_frame_t *frame, uint64_t current_time) {
     rapido_connection_t *connection = rapido_array_get(&session->connections, frame->connection_id);
     assert(connection);
     if (connection->socket != -1) {
         rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
         notification->notification_type = rapido_connection_reset;
         notification->connection_id = frame->connection_id;
+        notification->timestamp = current_time;
         rapido_connection_close(session, connection);
     }
     return 0;
@@ -1951,6 +1958,7 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
             session->is_closed = true;
             rapido_application_notification_t *notification = rapido_queue_push(&session->pending_notifications);
             notification->notification_type = rapido_session_closed;
+            notification->timestamp = current_time;
             QLOG(session, "session", "session_state_change", "", "{\"state\": \"close_notify\", \"connection_id\": \"%d\"}", connection_id);
         } else if (ret != 0) {
             printf("ret: %d\n", ret);
@@ -1974,27 +1982,27 @@ void rapido_process_incoming_data(rapido_session_t *session, rapido_connection_i
             case stream_frame_type: {
                 rapido_stream_frame_t frame;
                 assert(rapido_decode_stream_frame(session, plaintext.base + processed, &len, &frame) == 0);
-                assert(rapido_process_stream_frame(session, &frame) == 0);
+                assert(rapido_process_stream_frame(session, &frame, current_time) == 0);
             } break;
             case ack_frame_type: {
                 rapido_ack_frame_t frame;
                 assert(rapido_decode_ack_frame(session, plaintext.base + processed, &len, &frame) == 0);
-                assert(rapido_process_ack_frame(session, &frame) == 0);
+                assert(rapido_process_ack_frame(session, &frame, current_time) == 0);
             } break;
             case new_session_id_frame_type: {
                 rapido_new_session_id_frame_t frame;
                 assert(rapido_decode_new_session_id_frame(session, plaintext.base + processed, &len, &frame) == 0);
-                assert(rapido_process_new_session_id_frame(session, &frame) == 0);
+                assert(rapido_process_new_session_id_frame(session, &frame, current_time) == 0);
             } break;
             case new_address_frame_type: {
                 rapido_new_address_frame_t frame;
                 assert(rapido_decode_new_address_frame(session, plaintext.base + processed, &len, &frame) == 0);
-                assert(rapido_process_new_address_frame(session, &frame) == 0);
+                assert(rapido_process_new_address_frame(session, &frame, current_time) == 0);
             } break;
             case connection_reset_frame_type: {
                 rapido_connection_reset_frame_t frame;
                 assert(rapido_decode_connection_reset_frame(session, plaintext.base + processed, &len, &frame) == 0);
-                assert(rapido_process_connection_reset_frame(session, &frame) == 0);
+                assert(rapido_process_connection_reset_frame(session, &frame, current_time) == 0);
             } break;
             default:
                 WARNING("Unsupported frame type: %d\n", frame_type);
