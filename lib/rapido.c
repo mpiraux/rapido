@@ -2220,13 +2220,20 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
             nfds++;
         });
 
-        int polled_fds = poll(fds, nfds, no_fds > 0 ? timeout : 0);
+        int poll_timeout;
+        if (timeout != -1) {
+            poll_timeout = no_fds > 0 ? timeout : 0;
+        } else {
+            poll_timeout = no_fds > 0 ? 0 : -1;
+        }
+        int polled_fds = poll(fds, nfds, poll_timeout);
         todo(polled_fds < 0 && errno != EINTR);
         if (polled_fds == 0) {
             no_fds++;
         } else {
             no_fds = 0;
         }
+        current_time = get_usec_time();
 
         size_t fd_offset = 0;
         /* Accept new TCP connections and prepare the TLS handshake */
@@ -2289,7 +2296,7 @@ int rapido_run_network(rapido_session_t *session, int timeout) {
                 }
             }
         }
-    } while ((no_fds < 2 || fds_change) && has_low_occupancy(session->pending_notifications) && !session->is_closed);
+    } while (((no_fds < 2 || fds_change) && timeout != -1) && has_low_occupancy(session->pending_notifications) && !session->is_closed);
     return 0;
 }
 
