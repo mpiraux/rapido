@@ -192,6 +192,7 @@ typedef struct {
 
     struct {
         bool enable_ping_probes;
+        bool no_delay;
     } config;
 } rapido_session_t;
 

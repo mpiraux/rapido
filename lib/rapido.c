@@ -959,6 +959,9 @@ rapido_connection_id_t rapido_create_connection(rapido_session_t *session, uint8
     if (ret && errno != EINPROGRESS) {
         todo_perror(ret);
     }
+    if (session->config.no_delay) {
+        todo_perror(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(int)));
+    }
 
     return rapido_client_add_connection(session, fd, local_address_id, remote_address_id);
 }
@@ -1685,6 +1688,10 @@ int rapido_session_accept_new_connection(rapido_session_t *session, int accept_f
     int conn_fd = accept(accept_fd, (struct sockaddr *)&remote_address, &remote_address_len);
     todo_perror(conn_fd == -1);
     todo_perror(fcntl(conn_fd, F_SETFL, O_NONBLOCK));
+    if (session->config.no_delay) {
+        int yes = 1;
+        todo_perror(setsockopt(conn_fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(int)));
+    }
     rapido_server_add_new_connection(&session->server.pending_connections, session->tls_ctx, session->tls,
                                      ptls_get_server_name(session->tls), conn_fd, local_address_id);
     QLOG(session, "session", "rapido_session_accept_new_connection", "",
